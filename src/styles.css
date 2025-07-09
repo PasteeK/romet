@@ -1,1 +1,24 @@
-/* You can add global styles to this file, and also import other style files */
+@import "tailwindcss";
+
+@font-face {
+  font-family: 'romet';
+  src: url('/assets/fonts/romet.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@theme {
+    --color-redVelours: #8B1E3F;
+    --color-bordeaux: #4C112D;
+    --color-buttonBorder: #450000;
+    --color-buttonBack: #1F0006;
+    --color-gold: #D6A858;
+    --color-blackMat: #1B1B1B;
+    --color-graySteel: #666C70;
+    --color-violetDark: #472D5E;
+    --color-greenTable: #1F4733;
+    --color-blueElectric: #4DA0BD;
+    --color-orangeNeon: #F7803C;
+    --font-romet: 'romet';
+}
+
