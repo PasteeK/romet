@@ -1,0 +1,14 @@
+<div 
+  class="inline-block rounded-sm p-1 bg-buttonBorder"
+  [ngClass]="{ 'hover:scale-105': !isDisabled }">
+  <div
+    class="pt-[8px] leading-none transition duration-400 ease-in-out font-romet flex items-center justify-center h-16 rounded-sm px-8 text-center text-4xl"
+    [ngClass]="{
+      'hover:text-white hover:cursor-pointer bg-buttonBack text-gold': !isDisabled,
+      'text-gray-400 cursor-not-allowed bg-black': isDisabled
+    }"
+    (click)="handleClick()"
+  >
+    {{ buttonText }}
+  </div>
+</div>
