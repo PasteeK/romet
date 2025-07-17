@@ -1,0 +1,15 @@
+<div class="map">
+  <div *ngFor="let node of nodes"
+       class="node"
+       [class.active]="node.active"
+       [class.visited]="node.visited"
+       [class.blocked]="node.blocked"
+       [class.preview]="node.isPreview"
+       (mouseenter)="onHoverStart(node)"
+       (mouseleave)="onHoverEnd()"
+       (click)="onNodeClick(node)"
+       [style.left.%]="node.x * 10"
+       [style.top.%]="node.y * 10">
+    {{ node.type }}
+  </div>
+</div>
