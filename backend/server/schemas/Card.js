@@ -1,11 +1,6 @@
 const mongoose = require('mongoose');
 
 const cardSchema = new mongoose.Schema({
-    name: {
-        type: String,
-        required: true,
-        unique: true
-    },
     value: {
         type: Number,
         required: true
@@ -22,6 +17,6 @@ const cardSchema = new mongoose.Schema({
         type: String,
         required: true
     }
-})
+}, { timestamps: true })
 
 module.exports = mongoose.model('Card', cardSchema);
