@@ -1,0 +1,7 @@
+<div *ngIf="visible" class="">
+  <div class="bg-orangeNeon border-8 border-buttonBorder rounded-xs p-6 shadow-lg">
+    <h2 class="text-xl font-bold mb-4">Aperçu du profil</h2>
+    <p>Pseudo : {{ username }}</p>
+    <button (click)="close()" class="mt-4 bg-blue-500 text-white px-4 py-2 rounded">Fermer</button>
+  </div>
+</div>

@@ -6,4 +6,14 @@
     <app-button-menu buttonText="OPTIONS" [route]="'/options'"></app-button-menu>
     <app-button-menu buttonText="QUITTER" [route]="'/leave'"
         class="mt-10"></app-button-menu>
-</div>
+    </div>
+    <app-profil 
+        [visible]="showProfil"
+        (closed)="showProfil = false"
+        class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+    </app-profil>
+<button 
+    (click)="showProfil = true"
+    class="absolute bottom-1/10 left-1/12 transform -translate-x-1/2 text-gold text-5xl text-center font-romet hover:text-white transition duration-400 ease-in-out hover:cursor-pointer hover:scale-110"
+    >Profil
+</button>

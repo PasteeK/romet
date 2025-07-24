@@ -1,6 +1,6 @@
 import { Component, HostListener } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { Logo } from "../../shared/logo/logo";
+import { Logo } from '../../../shared/logo/logo';
 
 @Component({
   selector: 'app-title-screen',

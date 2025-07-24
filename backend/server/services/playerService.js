@@ -1,5 +1,4 @@
 const PlayerSchema = require('../schemas/Player')
-const mongoose = require('mongoose')
 
 // Service permettant de récupérer tous les joueurs
 const getAllPlayers = async () => {
@@ -8,30 +7,7 @@ const getAllPlayers = async () => {
 
 // Service permettant de créer un joueur
 const createPlayer = async (player) => {
-    const { username, email, password, confirmPassword, role } = player;
-
-    if (password !== confirmPassword) {
-        const err = new Error('Les mots de passe ne correspondent pas');
-        err.status = 400;
-        throw err;
-    }
-
-    // 🔎 Vérification proactive
-    const existingPlayer = await Player.findOne({ $or: [{ email }, { username }] });
-    if (existingPlayer) {
-        let champConflit = existingPlayer.email === email ? 'email' : 'username';
-        const err = new Error(`Le ${champConflit} est déjà utilisé.`);
-        err.status = 400;
-        throw err;
-    }
-
-    try {
-        const newPlayer = new Player({ username, email, password, role });
-        return await newPlayer.save();
-    } catch (err) {
-        err.status = 500;
-        throw err;
-    }
+    return await PlayerSchema.create(player)
 };
 
 // Service permettant de mettre à jour un joueur par son id
@@ -39,9 +15,26 @@ const updatePlayer = async (id, player) => {
     return await PlayerSchema.findByIdAndUpdate(id, player)
 }
 
+// Service permettant de récupérer un joueur par son id
+const getMe = async (req, res) => {
+    console.log('🆔 ID extrait du token :', req.user.id);
+  try {
+
+    const user = await Player.findById(req.user.id).select('username email');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({ pseudo: user.username, email: user.email });
+  } catch (err) {
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 module.exports = {
     getAllPlayers,
     createPlayer,
-    updatePlayer
+    updatePlayer,
+    getMe
 }
 

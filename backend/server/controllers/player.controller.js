@@ -1,4 +1,5 @@
 const playerService = require('../services/playerService');
+const Player = require('../schemas/Player');
 
 // Controlleur permettant de récupérer tous les joueurs
 const getAllPlayers = async (req, res) => {
@@ -30,8 +31,24 @@ const updatePlayer = async (req, res) => {
     }
 }
 
+// Controlleur permettant de récupérer un joueur par son id
+const getMe = async (req, res) => {
+  try {
+    console.log('🆔 ID extrait du token :', req.user.id);
+    const user = await Player.findById(req.user.id).select('username email');
+    if (!user) {
+      return res.status(404).json({ message: 'Utilisateur non trouvé' });
+    }
+    res.json({ pseudo: user.username, email: user.email });
+  } catch (err) {
+    console.error('❌ Erreur dans getMe:', err); // 👈 AJOUTE CECI
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+};
+
 module.exports = {
     getAllPlayers,
     createPlayer,
-    updatePlayer
+    updatePlayer,
+    getMe
 }

@@ -42,6 +42,9 @@ export class Register {
         this.successMessage.set("Inscription réussie !");
         this.errorMessage.set('');
         this.loading.set(false);
+        setTimeout(() => {
+          this.router.navigate(['/titlescreen']);
+        }, 1000);
       },
       error: (err) => {
         if (err.status === 409) {

@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
-import { Logo } from "../../shared/logo/logo";
-import { ButtonMenu } from "../../shared/button-menu/button-menu";
+import { Logo } from "../../../shared/logo/logo";
+import { ButtonMenu } from "../../../shared/button-menu/button-menu";
 
 @Component({
   selector: 'app-home',
