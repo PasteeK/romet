@@ -1,7 +1,31 @@
-<div *ngIf="visible" class="">
-  <div class="bg-orangeNeon border-8 border-buttonBorder rounded-xs p-6 shadow-lg">
-    <h2 class="text-xl font-bold mb-4">Aperçu du profil</h2>
-    <p>Pseudo : {{ username }}</p>
-    <button (click)="close()" class="mt-4 bg-blue-500 text-white px-4 py-2 rounded">Fermer</button>
+<div *ngIf="visible">
+  <div class="bg-orangeNeon border-8 border-buttonBorder rounded-xs p-6 shadow-lg relative">
+    <button (click)="close()"
+            class="hover:cursor-pointer absolute top-1/15 right-2 text-gold hover:text-white font-bold text-lg leading-none bg-buttonBack px-2 rounded">
+      &times;
+    </button>
+
+    <div class="flex justify-center align-center mb-4">
+      <h2 class="text-xl font-romet font-bold mb-4">Mon profil</h2>
+    </div>
+
+    <div *ngIf="pseudo">
+      <p class="font-romet">Nom d'utilisateur : {{ pseudo }}</p>
+    </div>
+    <div *ngIf="email">
+      <p class="font-romet">Email : {{ email }}</p>
+    </div>
+    <div *ngIf="gamesPlayed !== undefined">
+      <p class="font-romet">nombre de parties jouees : {{ gamesPlayed }}</p>
+    </div>
+
+    <div class="flex justify-center gap-8">
+      <button (click)="logout()" class="hover:cursor-pointer mt-4 font-romet bg-buttonBack text-gold hover:text-white hover:scale-105 px-4 py-2 rounded">
+        Deconnexion
+      </button>
+      <button (click)="logout()" class="hover:cursor-pointer mt-4 font-romet bg-buttonBack text-bordeaux hover:scale-105 px-4 py-2 rounded text-sm">
+        Supprimer compte
+      </button>
+    </div>
   </div>
 </div>

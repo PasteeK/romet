@@ -35,13 +35,33 @@ const updatePlayer = async (req, res) => {
 const getMe = async (req, res) => {
   try {
     console.log('🆔 ID extrait du token :', req.user.id);
-    const user = await Player.findById(req.user.id).select('username email');
+    const user = await Player.findById(req.user.id).select('username email gamesPlayed');
     if (!user) {
+        return res.status(404).json({ message: 'Utilisateur non trouvé' });
+    }
+    console.log('🎮 Games Played:', user.gamesPlayed);
+    res.json({ pseudo: user.username, email: user.email, gamesPlayed: user.gamesPlayed });
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+};
+
+// Controlleur permettant d'incrementer le nombre de parties jouées
+const incrementGamesPlayed = async (req, res) => {
+  try {
+    const updatedPlayer = await Player.findByIdAndUpdate(
+      req.user.id,
+      { $inc: { gamesPlayed: 1 } },
+      { new: true }
+    ).select('gamesPlayed');
+
+    if (!updatedPlayer) {
       return res.status(404).json({ message: 'Utilisateur non trouvé' });
     }
-    res.json({ pseudo: user.username, email: user.email });
+
+    res.json({ gamesPlayed: updatedPlayer.gamesPlayed });
   } catch (err) {
-    console.error('❌ Erreur dans getMe:', err); // 👈 AJOUTE CECI
+    console.error('Erreur update gamesPlayed :', err);
     res.status(500).json({ message: 'Erreur serveur' });
   }
 };
@@ -50,5 +70,6 @@ module.exports = {
     getAllPlayers,
     createPlayer,
     updatePlayer,
-    getMe
+    getMe,
+    incrementGamesPlayed
 }

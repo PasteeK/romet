@@ -8,9 +8,7 @@ export interface LoginCredentials {
 }
 
 export interface LoginResponse {
-  data: {
-    token: string;
-  }
+  token: string;
 }
 
 @Injectable({
@@ -27,7 +25,8 @@ export class LoginService {
         tap((response: LoginResponse) => {
           console.log(response);
 
-          localStorage.setItem('token', response.data.token);
+          localStorage.setItem('token', response.token);
+          localStorage.setItem('username', username);
         })
       );
   }

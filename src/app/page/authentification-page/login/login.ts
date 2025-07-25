@@ -43,6 +43,7 @@ export class Login {
         if (err.status === 401) {
           this.errorMessage.set("Nom d'utilisateur ou mot de passe incorrect.");
         } else {
+          console.error("Erreur capturée :", err);
           this.errorMessage.set("Une erreur est survenue. Veuillez réessayer.");
         }
         this.successMessage.set('');

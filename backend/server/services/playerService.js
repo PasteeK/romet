@@ -20,12 +20,12 @@ const getMe = async (req, res) => {
     console.log('🆔 ID extrait du token :', req.user.id);
   try {
 
-    const user = await Player.findById(req.user.id).select('username email');
+    const user = await Player.findById(req.user.id).select('username email gamesPlayed');
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    res.json({ pseudo: user.username, email: user.email });
+    res.json({ pseudo: user.username, email: user.email, gamesPlayed: user.gamesPlayed });
   } catch (err) {
     res.status(500).json({ message: 'Internal server error' });
   }

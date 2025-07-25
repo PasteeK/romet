@@ -16,6 +16,10 @@ const playerSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    gamesPlayed: {
+        type: Number,
+        default: 0
+    },
     savegame: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Savegame',

@@ -36,4 +36,6 @@ router.get('/me', authenticateToken, playerController.getMe);
 
 router.put('/update/:id', playerController.updatePlayer);
 
+router.patch('/increment-games', authenticateToken, playerController.incrementGamesPlayed);
+
 module.exports = router;
