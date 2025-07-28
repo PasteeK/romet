@@ -12,30 +12,16 @@ router.get('/', playerController.getAllPlayers);
 
 router.post('/add', playerController.createPlayer);
 
-router.post('/login', async (req, res) => {
-  try {
-    const player = await Player.findOne({ username: req.body.username });
-    if (!player) {
-      return res.status(401).json({ message: 'Invalid username or password' });
-    }
-
-    const isPasswordValid = await bcrypt.compare(req.body.password, player.password);
-    if (!isPasswordValid) {
-      return res.status(401).json({ message: 'Invalid username or password' });
-    }
-
-    const token = jwt.sign({ id: player._id }, process.env.JWT_SECRET);
-    res.status(200).json({ token });
-  } catch (err) {
-    console.error('Error while logging in:', err);
-    res.status(500).json({ message: 'Error while logging in' });
-  }
-});
+router.post('/login', playerController.login);
 
 router.get('/me', authenticateToken, playerController.getMe);
 
 router.put('/update/:id', playerController.updatePlayer);
 
 router.patch('/increment-games', authenticateToken, playerController.incrementGamesPlayed);
+
+router.delete('/me', authenticateToken, playerController.deletePlayer);
+
+router.delete('/delete/:id', playerController.deletePlayerById);
 
 module.exports = router;

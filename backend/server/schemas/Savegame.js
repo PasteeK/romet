@@ -28,11 +28,6 @@ const savegameSchema = new mongoose.Schema({
     discard: {
         type: Number,
         required: true
-    },
-    player: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Player',
-        required: true
     }
 }, { timestamps: true })
 

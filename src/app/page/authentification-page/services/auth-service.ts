@@ -41,6 +41,12 @@ export class AuthService {
     this.isLoggedIn.set(false);
   }
 
+  deleteAccount(): Observable<void> {
+    return this.http.delete<void>('http://localhost:3000/players/me', {
+      headers: { Authorization: `Bearer ${this.getToken()}` }
+    });
+  }
+
 
   private hasValidToken(): boolean {
     const token = this.getToken();

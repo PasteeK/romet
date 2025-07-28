@@ -43,7 +43,7 @@ export class Register {
         this.errorMessage.set('');
         this.loading.set(false);
         setTimeout(() => {
-          this.router.navigate(['/titlescreen']);
+          this.router.navigate(['/login']);
         }, 1000);
       },
       error: (err) => {

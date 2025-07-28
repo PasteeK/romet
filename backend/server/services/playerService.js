@@ -1,4 +1,6 @@
 const PlayerSchema = require('../schemas/Player')
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 
 // Service permettant de récupérer tous les joueurs
 const getAllPlayers = async () => {
@@ -20,7 +22,7 @@ const getMe = async (req, res) => {
     console.log('🆔 ID extrait du token :', req.user.id);
   try {
 
-    const user = await Player.findById(req.user.id).select('username email gamesPlayed');
+    const user = await PlayerSchema.findById(req.user.id).select('username email gamesPlayed');
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -31,10 +33,41 @@ const getMe = async (req, res) => {
   }
 };
 
+// Service permettant de se connecter
+const login = async (username, password) => {
+  const player = await PlayerSchema.findOne({ username });
+  if (!player) {
+    throw new Error('Invalid username or password');
+  }
+
+  const isPasswordValid = await bcrypt.compare(password, player.password);
+  if (!isPasswordValid) {
+    throw new Error('Invalid username or password');
+  }
+
+  const token = jwt.sign({ id: player._id }, process.env.JWT_SECRET);
+  return token;
+};
+
+// Service permettant de supprimer un joueur
+const deletePlayer = async (id) => {
+  console.log('🗑️ Player deleted:', id);
+  return await PlayerSchema.findByIdAndDelete(id)
+}
+
+// Service permettant de supprimer un joueur par son id
+const deletePlayerById = async (id) => {
+  console.log('🗑️ Player deleted:', id);
+  return await PlayerSchema.findByIdAndDelete(id)
+}
+
 module.exports = {
     getAllPlayers,
     createPlayer,
     updatePlayer,
-    getMe
+    getMe,
+    login,
+    deletePlayer,
+    deletePlayerById
 }
 

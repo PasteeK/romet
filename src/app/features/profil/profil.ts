@@ -46,6 +46,25 @@ export class Profil implements OnInit {
     this.router.navigate(['/login']);
   }
 
+  deleteAccountConfirm(): void {
+    if (confirm('Etes-vous sur de vouloir supprimer votre compte ?')) {
+      this.deleteAccount();
+    }
+  }
+
+  deleteAccount(): void {
+    console.log('🗑️ Suppression du compte ..');
+    
+    this.authService.deleteAccount().subscribe({
+      next: () => {
+        this.logout();
+      },
+      error: (err) => {
+        console.error('❌ Erreur suppression compte :', err);
+      }
+    });
+  }
+
   close(): void {
     this.closed.emit();
   }
