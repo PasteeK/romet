@@ -1,6 +1,6 @@
-import { Component, Inject } from '@angular/core';
-import { UserService } from '../page/authentification-page/services/user-service';
-import { HttpErrorResponse } from '@angular/common/http';
+import { AfterViewInit, Component, ElementRef, Inject, OnDestroy, ViewChild, viewChild } from '@angular/core';
+import Phaser from 'phaser';
+import { MainScene } from './scenes/main.scene';
 
 @Component({
   selector: 'app-game',
@@ -8,20 +8,26 @@ import { HttpErrorResponse } from '@angular/common/http';
   templateUrl: './game.html',
   styleUrl: './game.css'
 })
-export class Game {
+export class Game implements AfterViewInit, OnDestroy {
+  @ViewChild('gameContainer', { static: true }) gameContainer!: ElementRef;
+  phaserGame!: Phaser.Game;
 
-  constructor(private userService: UserService) {}
+  ngAfterViewInit(): void {
+      const config: Phaser.Types.Core.GameConfig = {
+          type: Phaser.AUTO,
+          width: 800,
+          height: 600,
+          backgroundColor: '#1d1d1d',
+          parent: this.gameContainer.nativeElement,
+          scene: [MainScene]
+      };
 
-  gamesPlayed: number = 0;
+      this.phaserGame = new Phaser.Game(config);
+  }
 
-  simulateGame() {
-    this.userService.incrementGamesPlayed().subscribe({
-      next: (res: { gamesPlayed: number }) => {
-        this.gamesPlayed = res.gamesPlayed;
-      },
-      error: (err: HttpErrorResponse) => {
-        console.error('Erreur lors de l’incrément de gamesPlayed :', err);
+  ngOnDestroy(): void {
+      if (this.phaserGame) {
+          this.phaserGame.destroy(true);
       }
-    });
   }
 }
