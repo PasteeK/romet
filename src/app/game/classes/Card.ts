@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 
 export class Card extends Phaser.GameObjects.Container {
+
     constructor(scene: Phaser.Scene, x: number, y: number, label: string) {
         super(scene, x, y);
 
