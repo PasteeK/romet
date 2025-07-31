@@ -6,32 +6,42 @@ import { PlayZone } from "../classes/PlayZone";
 
 export class MainScene extends Phaser.Scene {
     private playZone!: PlayZone;
+    private resultText!: Phaser.GameObjects.Text;
 
     constructor() {
         super('MainScene');
     }
 
+    private tryPlayCard(card: Card) {
+        if (this.playZone.containsCard(card)) return;
+
+        if (this.playZone.canAcceptCard()) {
+            this.playZone.addCard(card);
+            this.resultText.setText(this.playZone.evaluateHand());
+        } else {
+            console.log("PlayZone pleine !");
+            card.resetPosition();
+        }
+    }
+
     preload() {
-        // Chargement des images de fond
         this.load.image('background', 'assets/images/fight_background.png');
         this.load.image('tapis', 'assets/images/tapis_bg.png');
         this.load.image('ui_bg', 'assets/images/ui_bg.png');
 
-        // Chargement des cartes
         const values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
         values.forEach(value => {
             this.load.image(`diamond_${value}`, `assets/cards/diamond_${value}.svg`);
-            this.load.image(`heart_${value}`, `assets/cards/diamond_${value}.svg`);
-            this.load.image(`spade_${value}`, `assets/cards/diamond_${value}.svg`);
-            this.load.image(`clubs_${value}`, `assets/cards/diamond_${value}.svg`);
+            this.load.image(`heart_${value}`, `assets/cards/heart_${value}.svg`);
+            this.load.image(`spade_${value}`, `assets/cards/spade_${value}.svg`);
+            this.load.image(`clubs_${value}`, `assets/cards/clubs_${value}.svg`);
         });
 
-        // Chargement des monstres
         this.load.image('bluffChips', 'assets/monsters/sprites/bluffChips.png');
     }
 
     create() {
-        // Ajout des images de fond
+        // Background
         this.add.image(785, 0, 'background')
             .setOrigin(0.5, 0)
             .setDisplaySize(this.scale.width / 1.25, this.scale.height / 1.42)
@@ -47,33 +57,52 @@ export class MainScene extends Phaser.Scene {
 
         this.add.rectangle(800, 505, this.scale.width / 2 + 380, 12, 0xF7803C);
 
-        // Ajout de l'UI
         new PlayerUi(this);
+        new Monster(this, this.scale.width - 150, 300, 'bluffChips', 30).setScale(1.75);
 
-        // Ajout du monstre
-        const monster = new Monster(this, this.scale.width - 150, 300, 'bluffChips', 30).setScale(1.75);
-
-        // Ajout du PlayZone
         this.playZone = new PlayZone(this, this.scale.width / 2 + 25, this.scale.height - 350, 700, 180);
+        this.playZone.setOnChangeCallback(() => {
+            this.resultText.setText(this.playZone.evaluateHand());
+        })
 
-        // Ajout des cartes
-        const cardValues = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+        // Tirage aléatoire
+        const suits = ['diamond', 'heart', 'spade', 'clubs'];
+        const values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+
+        const fulldeck = suits.flatMap(suit =>
+            values.map(value => ({ suit, value }))
+        );
+
+        // Mélange Fisher-Yates
+        for (let i = fulldeck.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [fulldeck[i], fulldeck[j]] = [fulldeck[j], fulldeck[i]];
+        }
+
+        const hand = fulldeck.slice(0, 8);
+
         const spacing = 120;
         const startX = this.scale.width / 3 - spacing / 2;
         const y = this.scale.height - 100;
 
-        for (let i = 0; i < 8; i++) {
-            const card = new Card(this, startX + i * spacing, y, cardValues[i], 'diamond');
+        for (let i = 0; i < hand.length; i++) {
+            const { suit, value } = hand[i];
+            const x = startX + i * spacing;
 
-            card.on('pointerdown', () => {
-                if (this.playZone.isInside(card.x, card.y)) return;
+            const card = new Card(this, x, y, value, suit);
+            card.setOriginalPosition(x, y);
 
-                if (this.playZone.canAcceptCard()) {
-                    (card as Card).wasClicked = true;
-                    this.playZone.addCard(card);
-                } else {
-                    console.log('PlayZone pleine !');
-                }
+            // Clic uniquement si ce n’est pas un drag
+            card.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+                const downX = pointer.x;
+                const downY = pointer.y;
+
+                card.once('pointerup', (upPointer: Phaser.Input.Pointer) => {
+                    const dist = Phaser.Math.Distance.Between(downX, downY, upPointer.x, upPointer.y);
+                    if (dist < 10 && !this.playZone.isInside(upPointer.x, upPointer.y)) {
+                        this.tryPlayCard(card);
+                    }
+                });
             });
         }
 
@@ -87,29 +116,25 @@ export class MainScene extends Phaser.Scene {
             gameObject.y = dragY;
         });
 
-        this.input.on('dragend', (_: Phaser.Input.Pointer, gameObject: Card) => {
-            if (gameObject.wasClicked) {
-                gameObject.wasClicked = false; // le clic a déjà géré le placement
-                return;
-            }
-
+        this.input.on('dragend', (pointer: Phaser.Input.Pointer, gameObject: Card) => {
             gameObject.setDepth(0);
 
-            if (this.playZone.isInside(gameObject.x, gameObject.y)) {
-                if (this.playZone.canAcceptCard()) {
-                    this.playZone.addCard(gameObject);
-                } else {
-                    console.log("PlayZone pleine !");
-                    gameObject.resetPosition();
-                }
+            if (this.playZone.isInside(pointer.x, pointer.y)) {
+                this.tryPlayCard(gameObject);
             } else {
                 gameObject.resetPosition();
             }
         });
 
+        // Calcul de main
+        this.resultText = this.add.text(this.scale.width / 2, 150, '', {
+            fontSize: '24px',
+            color: '#ffffff'
+        }).setOrigin(0.5);
+
         // Bouton de fin de tour
-        const endTurnBtn = this.add.rectangle(1700, 800, 120, 40, 0x555555).setInteractive();
-        const endTurnText = this.add.text(1700, 800, 'Fin de tour', {
+        this.add.rectangle(1700, 800, 120, 40, 0x555555).setInteractive();
+        this.add.text(1700, 800, 'Fin de tour', {
             fontSize: '16px',
             color: '#ffffff'
         }).setOrigin(0.5);
