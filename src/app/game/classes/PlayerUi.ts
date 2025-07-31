@@ -12,7 +12,7 @@ export class PlayerUi {
         ];
 
         labels.forEach((label, index) => {
-            const text = scene.add.text(20, 20 + index * 30, label, {
+            const text = scene.add.text(100, 50 + index * 30, label, {
                 fontSize: '16px',
                 color: '#ffffff'
             });

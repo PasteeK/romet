@@ -10,7 +10,7 @@ export class Monster extends Phaser.GameObjects.Container {
         this.maxHP = hp;
         this.currentHP = hp;
 
-        const sprite = scene.add.rectangle(0, 0, 80, 80, 0xaa3333);
+        const sprite = texture ? scene.add.image(0, 10, texture) : scene.add.image(0, 0, 'monster');
         this.hpBar = scene.add.graphics();
         this.updateHPBar();
 
