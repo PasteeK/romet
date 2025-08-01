@@ -81,44 +81,82 @@ export class PlayZone {
     }
 
     evaluateHand(): string {
-        const cards = this.cards;
+        if (this.cards.length !== 5) return '';
 
-        if (cards.length < 5) return '';
+        const valueMap: { [key: string]: number} = {
+            '2': 2,
+            '3': 3,
+            '4': 4,
+            '5': 5,
+            '6': 6,
+            '7': 7,
+            '8': 8,
+            '9': 9,
+            '10': 10,
+            'J': 11,
+            'Q': 12,
+            'K': 13,
+            'A': 14
+        };
 
-        const values = cards.map(card => card.getValue());
-        const suits = cards.map(card => card.getSuit());
-
-        const numericValues = values.map(val => {
-            if (val === 'A') return 14;
-            if (val === 'K') return 13;
-            if (val === 'Q') return 12;
-            if (val === 'J') return 11;
-            return parseInt(val);
-        }).sort((a, b) => a - b);
+        const values = this.cards.map(card => valueMap[card.value]).sort((a, b) => a - b);
+        const suits = this.cards.map(card => card.suit);
+        const counts: { [val: number]: number } = {};
+        values.forEach(v => counts[v] = (counts[v] || 0) + 1);
 
         const isFlush = suits.every(s => s === suits[0]);
-        const isStraight = numericValues.every((val, i, arr) => 
-        i === 0 || val === arr[i - 1] + 1
-        );
+        const isStraight = values.every((v, i, arr) => i === 0 || v === arr[i - 1] + 1);
 
-        const counts: Record<number, number> = {};
-        numericValues.forEach(v => counts[v] = (counts[v] || 0) + 1);
+        let handType = 'Carte Haute';
+        let multiplier = 1;
 
-        const countValues = Object.values(counts)
+        const uniqueCounts = Object.values(counts).sort((a, b) => b - a).join('');
 
-        if (isStraight && isFlush) return 'Quinte Flush';
-        if (countValues.includes(4)) return 'Carré';
-        if (countValues.includes(3) && countValues.includes(2)) return 'Full';
-        if (isFlush) return 'Couleur';
-        if (isStraight) return 'Suite';
-        if (countValues.includes(3)) return 'Brelan';
-        if (countValues.filter(c => c === 2).length === 2) return 'Deux paires';
-        if (countValues.includes(2)) return 'Paire';
+        if (isFlush && isStraight && values[0] === 10) {
+            handType = 'Quinte Flush Royale';
+            multiplier = 10;
+        } else if (isFlush && isStraight) {
+            handType = 'Quinte Flush';
+            multiplier = 8;
+        } else if (uniqueCounts === '41') {
+            handType = 'Carré';
+            multiplier = 7;
+        } else if (uniqueCounts === '32') {
+            handType = 'Full';
+            multiplier = 6;
+        } else if (isFlush) {
+            handType = 'Couleur';
+            multiplier = 5;
+        } else if (isStraight) {
+            handType = 'Suite';
+            multiplier = 4;
+        } else if (uniqueCounts === '311') {
+            handType = 'Brelan';
+            multiplier = 3;
+        } else if (uniqueCounts === '221') {
+            handType = 'Double Paire';
+            multiplier = 2;
+        } else if (uniqueCounts === '2111') {
+            handType = 'Paire';
+            multiplier = 1.5;
+        }
 
-        return 'Carte Haute';
+        const total = values.reduce((sum, v) => sum + v, 0);
+        const score = Math.round(total * multiplier);
+
+        return `${handType} - Score : ${score}`;
     }
 
-    setOnChangeCallback(cb: () => void) {
+    clear(): void {
+        this.cards.forEach(card => card.destroy());
+        this.cards = [];
+        this.repositionCards();
+        if (this.onChangeCallback) {
+            this.onChangeCallback();
+        }
+    }
+
+    public setOnChangeCallback(cb: () => void) {
         this.onChangeCallback = cb;
     }
 
