@@ -18,12 +18,30 @@ export class Monster extends Phaser.GameObjects.Container {
         scene.add.existing(this);
     }
 
-    updateHPBar() {
+    private updateHPBar() {
         this.hpBar.clear();
         const width = 80;
         const height = 10;
-        const hpRatio = this.currentHP / this.maxHP;
+        const hpRatio = Phaser.Math.Clamp(this.currentHP / this.maxHP, 0, 1);
         this.hpBar.fillStyle(0x00ff00);
         this.hpBar.fillRect(-width / 2, -60, width * hpRatio, height);
+    }
+
+    public takeDamage(amount: number) {
+        this.currentHP -= amount;
+        if (this.currentHP < 0) this.currentHP = 0;
+
+        this.updateHPBar();
+
+        console.log(`Le monstre a ${this.currentHP} HP restants`);
+
+        // Optionnel : animation de secousse ou effet visuel
+        this.scene.tweens.add({
+            targets: this,
+            x: this.x - 10,
+            duration: 50,
+            yoyo: true,
+            repeat: 2
+        });
     }
 }

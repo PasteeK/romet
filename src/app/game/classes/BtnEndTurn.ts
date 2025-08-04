@@ -5,7 +5,7 @@ export class BtnEndTurn {
     private text: Phaser.GameObjects.Text;
 
     constructor(scene: Phaser.Scene, x: number, y: number, label: string = 'Fin de tour') {
-        this.button = scene.add.rectangle(x, y, 120, 40, 0x1F0006)
+        this.button = scene.add.rectangle(x, y, 100, 40, 0x1F0006)
         this.text = scene.add.text(x, y, label, {
             fontSize: '16px',
             color: '#ffffff'

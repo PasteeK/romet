@@ -10,6 +10,11 @@ export class PlayZone {
     private cardSpacing = 120;
 
     private onChangeCallback?: () => void;
+    private onCardRemovedCallback?: (card: Card) => void;
+
+    public setOnCardRemoved(cb: (card: Card) => void): void {
+        this.onCardRemovedCallback = cb;
+    }
 
 
     constructor(scene: Phaser.Scene, x: number, y: number, width: number, height: number) {
@@ -56,11 +61,12 @@ export class PlayZone {
         this.cards.splice(index, 1);
 
         this.scene.input.setDraggable(card, true);
-
         card.resetPosition();
 
         this.repositionCards();
+
         if (this.onChangeCallback) this.onChangeCallback();
+        if (this.onCardRemovedCallback) this.onCardRemovedCallback(card);
     }
 
     private repositionCards(): void {
@@ -81,22 +87,12 @@ export class PlayZone {
     }
 
     evaluateHand(): string {
-        if (this.cards.length !== 5) return '';
+        if (this.cards.length < 1) return '';
 
         const valueMap: { [key: string]: number} = {
-            '2': 2,
-            '3': 3,
-            '4': 4,
-            '5': 5,
-            '6': 6,
-            '7': 7,
-            '8': 8,
-            '9': 9,
-            '10': 10,
-            'J': 11,
-            'Q': 12,
-            'K': 13,
-            'A': 14
+            '2': 2, '3': 3, '4': 4, '5': 5, '6': 6,
+            '7': 7, '8': 8, '9': 9, '10': 10,
+            'J': 11, 'Q': 12, 'K': 13, 'A': 14
         };
 
         const values = this.cards.map(card => valueMap[card.value]).sort((a, b) => a - b);
@@ -104,41 +100,86 @@ export class PlayZone {
         const counts: { [val: number]: number } = {};
         values.forEach(v => counts[v] = (counts[v] || 0) + 1);
 
-        const isFlush = suits.every(s => s === suits[0]);
-        const isStraight = values.every((v, i, arr) => i === 0 || v === arr[i - 1] + 1);
+        const isFlush = suits.length >= 5 && suits.every(s => s === suits[0]);
+        let isStraight = false;
+
+        if (values.length >= 5) {
+            const uniqueVals = [...new Set(values)];
+            for (let i = 0; i <= uniqueVals.length - 5; i++) {
+                const slice = uniqueVals.slice(i, i + 5);
+                if (slice.every((v, j, arr) => j === 0 || v === arr[j - 1] + 1)) {
+                    isStraight = true;
+                    break;
+                }
+            }
+
+            const wheel = [14, 2, 3, 4, 5];
+            if (wheel.every(v => values.includes(v))) {
+                isStraight = true;
+                values.splice(values.indexOf(14), 1);
+                values.push(1);
+                values.sort((a, b) => a - b);
+            }
+        }
 
         let handType = 'Carte Haute';
         let multiplier = 1;
 
         const uniqueCounts = Object.values(counts).sort((a, b) => b - a).join('');
 
-        if (isFlush && isStraight && values[0] === 10) {
-            handType = 'Quinte Flush Royale';
-            multiplier = 10;
-        } else if (isFlush && isStraight) {
-            handType = 'Quinte Flush';
-            multiplier = 8;
-        } else if (uniqueCounts === '41') {
-            handType = 'Carré';
-            multiplier = 7;
-        } else if (uniqueCounts === '32') {
-            handType = 'Full';
-            multiplier = 6;
-        } else if (isFlush) {
-            handType = 'Couleur';
-            multiplier = 5;
-        } else if (isStraight) {
-            handType = 'Suite';
-            multiplier = 4;
-        } else if (uniqueCounts === '311') {
-            handType = 'Brelan';
-            multiplier = 3;
-        } else if (uniqueCounts === '221') {
-            handType = 'Double Paire';
-            multiplier = 2;
-        } else if (uniqueCounts === '2111') {
-            handType = 'Paire';
-            multiplier = 1.5;
+        if (this.cards.length === 5) {
+            if (isFlush && isStraight && values[0] === 10) {
+                handType = 'Quinte Flush Royale';
+                multiplier = 10;
+            } else if (isFlush && isStraight) {
+                handType = 'Quinte Flush';
+                multiplier = 8;
+            } else if (uniqueCounts === '41') {
+                handType = 'Carré';
+                multiplier = 7;
+            } else if (uniqueCounts === '32') {
+                handType = 'Full';
+                multiplier = 6;
+            } else if (isFlush) {
+                handType = 'Couleur';
+                multiplier = 5;
+            } else if (isStraight) {
+                handType = 'Suite';
+                multiplier = 4;
+            } else if (uniqueCounts === '311') {
+                handType = 'Brelan';
+                multiplier = 3;
+            } else if (uniqueCounts === '221') {
+                handType = 'Double Paire';
+                multiplier = 2;
+            } else if (uniqueCounts === '2111') {
+                handType = 'Paire';
+                multiplier = 1.5;
+            }
+        } else if (this.cards.length === 4) {
+            if (uniqueCounts === '31') {
+                handType = 'Brelan';
+                multiplier = 3;
+            } else if (uniqueCounts === '22') {
+                handType = 'Double Paire';
+                multiplier = 2;
+            } else if (uniqueCounts === '211') {
+                handType = 'Paire';
+                multiplier = 1.5;
+            }
+        } else if (this.cards.length === 3) {
+            if (uniqueCounts === '3') {
+                handType = 'Brelan';
+                multiplier = 3;
+            } else if (uniqueCounts === '21') {
+                handType = 'Paire';
+                multiplier = 1.5;
+            }
+        } else if (this.cards.length === 2) {
+            if (uniqueCounts === '2') {
+                handType = 'Paire';
+                multiplier = 1.5;
+            }
         }
 
         const total = values.reduce((sum, v) => sum + v, 0);
@@ -160,4 +201,7 @@ export class PlayZone {
         this.onChangeCallback = cb;
     }
 
+    public getCards(): Card[] {
+        return [...this.cards];
+    }
 }
