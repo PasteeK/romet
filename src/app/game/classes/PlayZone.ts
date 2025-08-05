@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { Card } from './Card';
 import { count } from 'rxjs';
+import { GameUI } from './GameUI';
 
 export class PlayZone {
     private scene: Phaser.Scene;
@@ -8,6 +9,12 @@ export class PlayZone {
     private cards: Card[] = [];
     private maxCards = 5;
     private cardSpacing = 120;
+    private lastScore: number = 0;
+
+    private gameUI?: GameUI
+    public setGameUI(ui: GameUI) {
+        this.gameUI = ui;
+    }
 
     private onChangeCallback?: () => void;
     private onCardRemovedCallback?: (card: Card) => void;
@@ -89,46 +96,48 @@ export class PlayZone {
     evaluateHand(): string {
         if (this.cards.length < 1) return '';
 
-        const valueMap: { [key: string]: number} = {
+        const valueMap: { [key: string]: number } = {
             '2': 2, '3': 3, '4': 4, '5': 5, '6': 6,
             '7': 7, '8': 8, '9': 9, '10': 10,
             'J': 11, 'Q': 12, 'K': 13, 'A': 14
         };
 
-        const values = this.cards.map(card => valueMap[card.value]).sort((a, b) => a - b);
+        const values = this.cards.map(card => valueMap[card.value]);
         const suits = this.cards.map(card => card.suit);
+
         const counts: { [val: number]: number } = {};
         values.forEach(v => counts[v] = (counts[v] || 0) + 1);
+        const countValues = Object.values(counts).sort((a, b) => b - a);
+        const uniqueCounts = countValues.join('');
 
-        const isFlush = suits.length >= 5 && suits.every(s => s === suits[0]);
+        const sortedValues = [...new Set(values)].sort((a, b) => a - b);
+
+        const isFlush = this.cards.length === 5 && suits.every(suit => suit === suits[0]);
+
         let isStraight = false;
-
-        if (values.length >= 5) {
-            const uniqueVals = [...new Set(values)];
-            for (let i = 0; i <= uniqueVals.length - 5; i++) {
-                const slice = uniqueVals.slice(i, i + 5);
+        if (this.cards.length === 5) {
+            // Suite classique
+            for (let i = 0; i <= sortedValues.length - 5; i++) {
+                const slice = sortedValues.slice(i, i + 5);
                 if (slice.every((v, j, arr) => j === 0 || v === arr[j - 1] + 1)) {
                     isStraight = true;
                     break;
                 }
             }
 
+            // Petite Suite (A-2-3-4-5)
             const wheel = [14, 2, 3, 4, 5];
             if (wheel.every(v => values.includes(v))) {
                 isStraight = true;
-                values.splice(values.indexOf(14), 1);
-                values.push(1);
-                values.sort((a, b) => a - b);
             }
         }
 
         let handType = 'Carte Haute';
         let multiplier = 1;
 
-        const uniqueCounts = Object.values(counts).sort((a, b) => b - a).join('');
-
+        // Main de 5 cartes
         if (this.cards.length === 5) {
-            if (isFlush && isStraight && values[0] === 10) {
+            if (isFlush && isStraight && sortedValues.includes(10)) {
                 handType = 'Quinte Flush Royale';
                 multiplier = 10;
             } else if (isFlush && isStraight) {
@@ -156,8 +165,14 @@ export class PlayZone {
                 handType = 'Paire';
                 multiplier = 1.5;
             }
-        } else if (this.cards.length === 4) {
-            if (uniqueCounts === '31') {
+        }
+
+        // Main de 4 cartes
+        else if (this.cards.length === 4) {
+            if (uniqueCounts === '4') {
+                handType = 'Carré';
+                multiplier = 7;
+            } else if (uniqueCounts === '31') {
                 handType = 'Brelan';
                 multiplier = 3;
             } else if (uniqueCounts === '22') {
@@ -167,7 +182,10 @@ export class PlayZone {
                 handType = 'Paire';
                 multiplier = 1.5;
             }
-        } else if (this.cards.length === 3) {
+        }
+
+        // Main de 3 cartes
+        else if (this.cards.length === 3) {
             if (uniqueCounts === '3') {
                 handType = 'Brelan';
                 multiplier = 3;
@@ -175,7 +193,10 @@ export class PlayZone {
                 handType = 'Paire';
                 multiplier = 1.5;
             }
-        } else if (this.cards.length === 2) {
+        }
+
+        // Main de 2 cartes
+        else if (this.cards.length === 2) {
             if (uniqueCounts === '2') {
                 handType = 'Paire';
                 multiplier = 1.5;
@@ -184,6 +205,11 @@ export class PlayZone {
 
         const total = values.reduce((sum, v) => sum + v, 0);
         const score = Math.round(total * multiplier);
+        this.lastScore = score;
+
+        if (this.gameUI) {
+            this.gameUI.setScore(handType, score);
+        }
 
         return `${handType} - Score : ${score}`;
     }
@@ -203,5 +229,9 @@ export class PlayZone {
 
     public getCards(): Card[] {
         return [...this.cards];
+    }
+
+    public getScore(): number {
+        return this.lastScore;
     }
 }

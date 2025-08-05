@@ -17,6 +17,10 @@ export class Game implements AfterViewInit, OnDestroy {
           type: Phaser.AUTO,
           width: 1280,
           height: 720,
+          fps: {
+            target: 60,
+            forceSetTimeOut: true
+          },
           backgroundColor: '#1d1d1d',
           parent: this.gameContainer.nativeElement,
           scene: [MainScene]
