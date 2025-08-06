@@ -6,7 +6,7 @@
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "mocha './backend/server/tests/*.js'"
+    "test": "mocha --require ./tests/setup.js './backend/server/tests/*.js'"
   },
   "prettier": {
     "overrides": [
@@ -34,6 +34,7 @@
     "passport-jwt": "^4.0.1",
     "phaser": "^3.90.0",
     "rxjs": "~7.8.0",
+    "should": "^13.2.3",
     "tslib": "^2.3.0",
     "zone.js": "~0.15.0"
   },

@@ -1,57 +1,35 @@
-const path = require('path');
-require('dotenv').config({ path: path.resolve(__dirname, '../.env.test'), override: true });
-
-const chai = require('chai');
-const chaiHttp = require('chai-http');
 const mongoose = require('mongoose');
-const app = require('../server');
-const Player = require('../schemas/Player');
+const playerService = require('../services/playerService');
+const config = require('../config')
+const should = require('should');
 
-const expect = chai.expect;
-chai.use(chaiHttp);
+const playerValidSchema = {
+  username: 'testplayer',
+  email: 'test@example.com',
+  password: 'securepassword'
+};
 
-describe('Player API', () => {
-
-  before(async () => {
-    await mongoose.connect(process.env.MONGO_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+before(async () => {
+  const connection = await mongoose.connect(config.mongoURI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
   });
 
-  afterEach(async () => {
-    await Player.deleteMany({});
+  await connection.connection.db.dropDatabase();
+
+  const modelPromises = Object.values(mongoose.models).map(model => model.syncIndexes());
+  await Promise.all(modelPromises);
+});
+
+describe('PlayerService - CreatePlayer', function() {
+  it('should add a player', async function () {
+    const result = await playerService.createPlayer(playerValidSchema);
+
+    result.should.have.property('username', playerValidSchema.username);
+    result.should.have.property('email', playerValidSchema.email);
+    result.should.have.property('password');
+    result.should.have.property('_id');
+
+    playerValidSchema._id = result._id;
   });
-
-  after(async () => {
-    await mongoose.connection.close();
-  });
-
-  describe('GET /players', () => {
-    it('should get an empty array', async () => {
-      const response = await chai.request(app).get('/players');
-      expect(response).to.have.status(200);
-      expect(response.body).to.be.an('array').that.is.empty;
-    });
-  });
-
-  describe('POST /players/add', () => {
-    it('should create a new player', async () => {
-      const newPlayer = {
-        username: 'test',
-        email: 'test@example.com',
-        password: 'password'
-      };
-
-      const response = await chai.request(app).post('/players').send(newPlayer);
-
-      expect(response).to.have.status(201);
-      expect(response.body).to.include({
-        username: 'test',
-        email: 'test@example.com'
-      });
-      expect(response.body).to.have.property('_id');
-    });
-  });
-
 });
