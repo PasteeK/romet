@@ -143,6 +143,8 @@ export class MainScene extends Phaser.Scene {
             // Barre latérale separation entre la main et la zone de jeu
             this.add.rectangle(800, 505, this.scale.width / 2 + 380, 12, 0xF7803C);
 
+
+            // Génération d'un monstre aléatoire
             const randomConfig = Phaser.Utils.Array.GetRandom(MONSTER_DEFINITIONS);
 
             this.monster = new Monster(
@@ -154,15 +156,17 @@ export class MainScene extends Phaser.Scene {
                 randomConfig.actions
             ).setScale(1.75);
     
-            
+            // Création de l'UI
             this.gameUI = new GameUI(this);
             this.gameUI.setHP(100);
             this.gameUI.setGold(0);
             this.gameUI.setDiscard(0);
             this.gameUI.setScore('', 0);
 
+            // Création du joueur
             this.player = new Player(this.gameUI);
     
+            // Création de la zone de jeu
             this.playZone = new PlayZone(this, this.scale.width / 2 + 25, this.scale.height - 335, 700, 180);
             this.playZone.setGameUI(this.gameUI);
     

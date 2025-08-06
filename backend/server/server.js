@@ -43,3 +43,5 @@ app.use((err, req, res, next) => {
     error: err.message || 'Erreur interne du serveur'
   });
 });
+
+module.exports = app;
