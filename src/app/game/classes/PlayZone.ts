@@ -234,4 +234,9 @@ export class PlayZone {
     public getScore(): number {
         return this.lastScore;
     }
+
+    public setPosition(x: number, y: number): void {
+        this.zone.setPosition(x, y);
+        this.repositionCards();
+    }
 }

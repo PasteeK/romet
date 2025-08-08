@@ -28,4 +28,9 @@ export class BtnEndTurn {
         }
         this.text.setAlpha(enabled ? 1 : 0.5);
     }
+
+    public setPosition(x: number, y: number): void {
+        this.button.setPosition(x, y);
+        this.text.setPosition(x, y);
+    }
 }

@@ -143,6 +143,31 @@ export class MainScene extends Phaser.Scene {
             // Barre latérale separation entre la main et la zone de jeu
             this.add.rectangle(800, 505, this.scale.width / 2 + 380, 12, 0xF7803C);
 
+            this.scale.on('resize', (gameSize: Phaser.Structs.Size) => {
+                const width = gameSize.width;
+                const height = gameSize.height;
+
+                // Repositionnement des éléments
+                if (this.playZone) {
+                    this.playZone.setPosition(width / 2 + 25, height - 335);
+                }
+
+                if (this.playButton) {
+                    this.playButton.setPosition(width - 190, height - 280);
+                }
+
+                if (this.discardButton) {
+                    this.discardButton.setPosition(width - 80, height - 280);
+                }
+
+                if (this.monster) {
+                    this.monster.setPosition(width - 150, 285);
+                }
+
+                // Reorganise la main aussi
+                this.reorganizeHand();
+            });
+
 
             // Génération d'un monstre aléatoire
             const randomConfig = Phaser.Utils.Array.GetRandom(MONSTER_DEFINITIONS);
