@@ -2,6 +2,7 @@ export class MapNode extends Phaser.GameObjects.Container {
     private background: Phaser.GameObjects.Graphics;
     private image?: Phaser.GameObjects.Image;
     private index: number;
+    private isCleared = false;
 
     constructor(scene: Phaser.Scene, x: number, y: number, index: number, textureKey?: string) {
         super(scene, x, y);
@@ -20,18 +21,23 @@ export class MapNode extends Phaser.GameObjects.Container {
         this.add(hitZone);
 
         hitZone.on('pointerover', () => {
+            if (this.isCleared) return;
             this.drawBackground(0xF7803C);
             this.setScale(1.1, 1.1);
         });
 
         hitZone.on('pointerout', () => {
+            if (this.isCleared) return;
             this.drawBackground(0x8B1E3F);
             this.setScale(1, 1);
         });
 
         hitZone.on('pointerdown', () => {
-            console.log(`Node ${this.index} clicked`);
-            scene.scene.start('MainScene', { nodeIndex: this.index });
+            if (this.isCleared) return;
+            
+            this.scene.scene.launch('MainScene', { nodeIndex: this.index });
+
+            this.scene.scene.sleep();
         });
 
         scene.add.existing(this);
@@ -41,5 +47,13 @@ export class MapNode extends Phaser.GameObjects.Container {
         this.background.clear();
         this.background.fillStyle(color, 1);
         this.background.fillRoundedRect(-27.5, -27.5, 55, 55, 10);
+    }
+
+    setCleared() {
+        this.isCleared = true;
+        this.background.clear();
+        this.background.fillStyle(0x555555, 1);
+        this.background.fillRoundedRect(-27.5, -27.5, 55, 55, 10);
+        this.setAlpha(0.9);
     }
 }

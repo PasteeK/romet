@@ -107,6 +107,41 @@ export class MainScene extends Phaser.Scene {
         this.currentTurn = 'player';
     }
 
+    private selectedNodeIndex: number | null = null;
+
+    init(data: { nodeIndex?: number }) {
+        this.selectedNodeIndex = data?.nodeIndex ?? null;
+
+        this.handCards = [];
+        this.usedCards = [];
+        this.discardedCards = [];
+        this.currentTurn = 'player';
+
+        this.time?.removeAllEvents();
+        this.input?.removeAllListeners();
+    }
+
+    private onCombatWon() {
+        this.time.removeAllEvents();
+        this.input.removeAllListeners();
+        this.playButton?.setEnabled(false);
+        this.discardButton?.setEnabled(false);
+
+        if (this.selectedNodeIndex != null) {
+            this.game.events.emit('node:cleared', this.selectedNodeIndex);
+        }
+
+        if (this.scene.isSleeping('MapScene')) {
+            this.scene.wake('MapScene');
+        } else if (this.scene.isPaused('MapScene')) {
+            this.scene.resume('MapScene');
+        }
+
+        this.scene.bringToTop('MapScene');
+
+        this.scene.stop();
+    }
+
 
     preload() {
         this.load.image('background', 'assets/images/fight_background.png');
@@ -127,6 +162,28 @@ export class MainScene extends Phaser.Scene {
 
     create() {
         document.fonts.ready.then(() => {
+
+            // Reinitialisation des inputs
+            this.input.removeAllListeners();
+
+            this.input.on('dragstart', (_: Phaser.Input.Pointer, go: Phaser.GameObjects.GameObject) => {
+            if (go instanceof Card) go.setDepth(1000);
+            });
+
+            this.input.on('drag', (_: Phaser.Input.Pointer, go: Phaser.GameObjects.GameObject, x: number, y: number) => {
+            if (go instanceof Card) { go.x = x; go.y = y; }
+            });
+
+            this.input.on('dragend', (pointer: Phaser.Input.Pointer, go: Phaser.GameObjects.GameObject) => {
+            if (go instanceof Card) {
+                go.setDepth(0);
+                if (this.playZone.isInside(pointer.x, pointer.y)) this.tryPlayCard(go);
+                else go.resetPosition();
+            }
+            });
+
+
+            // Création de l'UI
             this.add.image(785, 0, 'background')
                 .setOrigin(0.5, 0)
                 .setDisplaySize(this.scale.width / 1.25, this.scale.height / 1.42)
@@ -180,6 +237,8 @@ export class MainScene extends Phaser.Scene {
                 randomConfig.maxHP,
                 randomConfig.actions
             ).setScale(1.75);
+
+            this.events.once('monster:dead', () => this.onCombatWon());
     
             // Création de l'UI
             this.gameUI = new GameUI(this);
@@ -397,6 +456,15 @@ export class MainScene extends Phaser.Scene {
                     }
                 }
             });
+
+            this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+                this.handCards.forEach(c => c.destroy());
+                this.handCards = [];
+                this.usedCards = [];
+                this.discardedCards = [];
+                this.input.removeAllListeners();
+                this.time.removeAllEvents();
+            })
         })
     }
 }

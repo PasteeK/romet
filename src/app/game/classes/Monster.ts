@@ -69,6 +69,8 @@ export class Monster extends Phaser.GameObjects.Container {
         this.updateShieldDisplay();
     }
 
+    private isDead = false
+
     public takeDamage(amount: number) {
         let damage = amount;
 
@@ -106,6 +108,11 @@ export class Monster extends Phaser.GameObjects.Container {
         }
 
         this.updateHPBar();
+
+        if (!this.isDead && this.currentHP <= 0) {
+            this.isDead = true;
+            this.scene.events.emit('monster:dead');
+        }
     }
 
     public playNextAction(): MonsterAction {
