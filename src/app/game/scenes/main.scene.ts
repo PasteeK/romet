@@ -18,6 +18,8 @@ export class MainScene extends Phaser.Scene {
     private player!: Player;
     private playButton!: BtnEndTurn;
     private discardButton!: BtnEndTurn;
+    private static readonly MAX_DISCARD = 3;
+    private discardsUsed = 0;
 
     private currentTurn: 'player' | 'monster' = 'player';
 
@@ -116,6 +118,8 @@ export class MainScene extends Phaser.Scene {
         this.usedCards = [];
         this.discardedCards = [];
         this.currentTurn = 'player';
+
+        this.discardsUsed = 0;
 
         this.time?.removeAllEvents();
         this.input?.removeAllListeners();
@@ -245,6 +249,7 @@ export class MainScene extends Phaser.Scene {
             this.gameUI.setHP(100);
             this.gameUI.setGold(0);
             this.gameUI.setDiscard(0);
+            this.gameUI.setDiscard(MainScene.MAX_DISCARD - this.discardsUsed);
             this.gameUI.setScore('', 0);
 
             // Création du joueur
@@ -262,16 +267,20 @@ export class MainScene extends Phaser.Scene {
     
             this.playZone.setOnChangeCallback(() => {
                 const cardCount = this.playZone.getCardCount();
-                const enabled = cardCount >= 1 && cardCount <= 5;
-                this.playButton.setEnabled(enabled);
-                this.discardButton.setEnabled(enabled);
-    
+                const canPlay = cardCount >= 1 && cardCount <= 5;
+
+                this.playButton.setEnabled(canPlay);
+
+                const hasDiscardsLeft = this.discardsUsed < MainScene.MAX_DISCARD;
+                this.discardButton.setEnabled(canPlay && hasDiscardsLeft);
+
                 if (cardCount > 0) {
                     this.playZone.evaluateHand();
                 } else {
                     this.gameUI.setScore('', 0);
                 }
             });
+
     
             const suits = ['diamond', 'heart', 'spade', 'clubs'];
             const values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
@@ -369,62 +378,67 @@ export class MainScene extends Phaser.Scene {
     
     
             this.discardButton.onClick(() => {
-                this.playZone.getCards().forEach(card => {
+                if (this.discardsUsed >= MainScene.MAX_DISCARD) return;
+                const cardsInPlay = this.playZone.getCards();
+                if (cardsInPlay.length === 0) return;
+
+                cardsInPlay.forEach(card => {
                     const id = `${card.suit}_${card.value}`;
-                    if (!this.discardedCards.includes(id)) {
-                        this.discardedCards.push(id);
-                    }
+                    if (!this.discardedCards.includes(id)) this.discardedCards.push(id);
                     card.destroy();
                 });
-    
                 this.playZone.clear();
-    
+
                 const currentHandSize = this.handCards.length;
                 const needed = 8 - currentHandSize;
-    
+
                 if (needed > 0) {
                     let deck = suits.flatMap(suit => values.map(value => ({ suit, value })));
                     const used = this.handCards.map(c => `${c.suit}_${c.value}`)
-                        .concat(this.usedCards)
-                        .concat(this.discardedCards);
-    
+                    .concat(this.usedCards)
+                    .concat(this.discardedCards);
+
                     let remaining = deck.filter(c => !used.includes(`${c.suit}_${c.value}`));
-    
+
                     if (remaining.length < needed) {
-                        const recycled = this.discardedCards.map(id => {
-                            const [suit, value] = id.split('_');
-                            return { suit, value };
-                        });
-                        this.discardedCards = [];
-                        remaining = remaining.concat(recycled);
+                    const recycled = this.discardedCards.map(id => {
+                        const [suit, value] = id.split('_');
+                        return { suit, value };
+                    });
+                    this.discardedCards = [];
+                    remaining = remaining.concat(recycled);
                     }
-    
+
                     Phaser.Utils.Array.Shuffle(remaining);
-    
+
                     for (let i = 0; i < needed && i < remaining.length; i++) {
-                        const { suit, value } = remaining[i];
-                        const card = new Card(this, 0, 0, value, suit);
-                        card.setInteractive();
-                        this.input.setDraggable(card, true);
-                        this.handCards.push(card);
-    
-                        card.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-                            const downX = pointer.x, downY = pointer.y;
-                            card.once('pointerup', (upPointer: Phaser.Input.Pointer) => {
-                                const dist = Phaser.Math.Distance.Between(downX, downY, upPointer.x, upPointer.y);
-                                if (dist < 10 && !this.playZone.isInside(upPointer.x, upPointer.y)) {
-                                    this.tryPlayCard(card);
-                                }
-                            });
+                    const { suit, value } = remaining[i];
+                    const card = new Card(this, 0, 0, value, suit);
+                    card.setInteractive();
+                    this.input.setDraggable(card, true);
+                    this.handCards.push(card);
+
+                    card.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+                        const downX = pointer.x, downY = pointer.y;
+                        card.once('pointerup', (upPointer: Phaser.Input.Pointer) => {
+                        const dist = Phaser.Math.Distance.Between(downX, downY, upPointer.x, upPointer.y);
+                        if (dist < 10 && !this.playZone.isInside(upPointer.x, upPointer.y)) {
+                            this.tryPlayCard(card);
+                        }
                         });
+                    });
                     }
-    
+
                     this.reorganizeHand();
                 }
-    
+
+                this.discardsUsed++;
+                this.gameUI.setDiscard(MainScene.MAX_DISCARD - this.discardsUsed);
+
                 this.playButton.setEnabled(false);
                 this.discardButton.setEnabled(false);
             });
+
     
     
             this.playZone.setOnCardRemoved((card: Card) => {
