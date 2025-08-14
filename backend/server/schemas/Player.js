@@ -5,16 +5,20 @@ const playerSchema = new mongoose.Schema({
     username: {
         type: String,
         required: true,
-        unique: true
+        unique: true,
+        trim: true
     },
     email: {
         type: String,
         required: true,
-        unique: true
+        unique: true,
+        lowercase: true,
+        trim: true
     },
     password: {
         type: String,
-        required: true
+        required: true,
+        select: false
     },
     gamesPlayed: {
         type: Number,
@@ -40,13 +44,27 @@ const playerSchema = new mongoose.Schema({
 
 playerSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
-
   try {
     this.password = await bcrypt.hash(this.password, 10);
     next();
   } catch (err) {
-    next(err); 
+    next(err);
   }
+});
+
+playerSchema.set('toJSON', {
+    transform: (_, ret) => {
+        delete ret.password;
+        delete ret.__v;
+        return ret
+    }
+});
+playerSchema.set('toObject', {
+    transform: (_, ret) => {
+        delete ret.password;
+        delete ret.__v;
+        return ret
+    }
 });
 
 module.exports = mongoose.model('Player', playerSchema);

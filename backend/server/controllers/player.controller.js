@@ -23,13 +23,16 @@ const createPlayer = async (req, res) => {
 
 // Controlleur permettant de mettre à jour un joueur
 const updatePlayer = async (req, res) => {
-    try {
-        const player = await playerService.updatePlayer(req.params.id, req.body);
-        res.status(200).json(player);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-}
+  try {
+    const { modified, player } = await playerService.updatePlayer(req.params.id, req.body);
+    res.status(200).json({ modified, player });
+  } catch (err) {
+    if (err.name === 'CastError') return res.status(400).json({ message: 'Invalid user id' });
+    if (err.code === 11000)      return res.status(409).json({ message: 'Username or email already exists' });
+    res.status(err.status || 500).json({ message: err.message || 'Server error' });
+  }
+};
+
 
 // Controlleur permettant de récupérer un joueur par son id
 const getMe = async (req, res) => {

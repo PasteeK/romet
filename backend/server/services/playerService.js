@@ -13,9 +13,24 @@ const createPlayer = async (player) => {
 };
 
 // Service permettant de mettre à jour un joueur par son id
-const updatePlayer = async (id, player) => {
-    return await PlayerSchema.findByIdAndUpdate(id, player)
-}
+const pickAllowed = (obj, allowed) =>
+  Object.fromEntries(Object.entries(obj || {}).filter(([k]) => allowed.includes(k)));
+
+const updatePlayer = async (id, data) => {
+  const allowed = ['username','email','gamesPlayed','savegame','lastLogin'];
+  const update = pickAllowed(data, allowed);
+  if (!id) throw Object.assign(new Error('Missing user id'), { status: 400 });
+  if (Object.keys(update).length === 0)
+    throw Object.assign(new Error('No updatable fields in body'), { status: 400 });
+
+  const result = await PlayerSchema.updateOne({ _id: id }, { $set: update }, { runValidators: true, context: 'query' });
+
+  if (result.matchedCount === 0)
+    throw Object.assign(new Error('User not found'), { status: 404 });
+
+  const fresh = await PlayerSchema.findById(id).select('username email gamesPlayed role savegame lastLogin createdAt updatedAt');
+  return { modified: result.modifiedCount > 0, player: fresh };
+};
 
 // Service permettant de récupérer un joueur par son id
 const getMe = async (req, res) => {
@@ -35,7 +50,7 @@ const getMe = async (req, res) => {
 
 // Service permettant de se connecter
 const login = async (username, password) => {
-  const player = await PlayerSchema.findOne({ username });
+  const player = await PlayerSchema.findOne({ username }).select('+password');
   if (!player) {
     throw new Error('Invalid username or password');
   }
@@ -45,7 +60,9 @@ const login = async (username, password) => {
     throw new Error('Invalid username or password');
   }
 
-  const token = jwt.sign({ id: player._id }, process.env.JWT_SECRET);
+  PlayerSchema.findByIdAndUpdate(player._id, { lastLogin: new Date() }).catch(() => {});
+
+  const token = jwt.sign({ id: player._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
   return token;
 };
 

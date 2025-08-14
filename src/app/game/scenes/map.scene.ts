@@ -6,13 +6,11 @@ export class MapScene extends Phaser.Scene {
   private gameUI!: GameUI;
   private nodes: MapNode[] = [];
 
-  // Persistance
   private storageClearedKey = 'romet.clearedNodes.v1';
   private storageChoiceKey  = 'romet.pathChoices.v1';
   private clearedSet = new Set<number>();
-  private choices: Record<number, number> = {}; // layer -> nodeIndex choisi
+  private choices: Record<number, number> = {};
 
-  // Couches et connexions
   private readonly LAYERS: number[][] = [
     [0, 1, 2],
     [3, 4, 5, 6, 7, 8],
@@ -46,19 +44,15 @@ export class MapScene extends Phaser.Scene {
     super('MapScene');
   }
 
-  // ---------- Lifecycle
 
   init(data?: { clearedNodes?: number[] }) {
-    // 1) Construire la map des parents
     this.buildParents();
 
-    // 2) Charger persistance (cleared + choix de chemin)
     this.loadPersistence();
 
-    // 3) Merger d’éventuels cleared passés via params (au cas où)
     const fromParam = data?.clearedNodes ?? [];
     fromParam.forEach(i => this.clearedSet.add(i));
-    this.saveCleared(); // on écrit si on a enrichi
+    this.saveCleared();
   }
 
   preload() {
@@ -101,17 +95,14 @@ export class MapScene extends Phaser.Scene {
         this.nodes[i] = node;
       });
 
-      // Appliquer l’état initial (cleared/available/blocked)
       this.updateReachability();
 
-      // Écoute des événements
       const onCleared  = (idx: number) => this.markNodeCleared(idx);
       const onSelected = (idx: number) => this.onNodeSelected(idx);
 
       this.game.events.on('node:cleared', onCleared);
       this.game.events.on('map:nodeSelected', onSelected);
 
-      // Cleanup
       this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
         this.game.events.off('node:cleared', onCleared);
         this.game.events.off('map:nodeSelected', onSelected);
@@ -119,35 +110,31 @@ export class MapScene extends Phaser.Scene {
     });
   }
 
-  // ---------- Persistance
 
   private loadPersistence() {
-    // cleared
     try {
       const raw = localStorage.getItem(this.storageClearedKey);
       if (raw) JSON.parse(raw).forEach((i: number) => this.clearedSet.add(i));
-    } catch {/* ignore */ }
+    } catch {}
 
-    // choices
     try {
       const raw = localStorage.getItem(this.storageChoiceKey);
       if (raw) this.choices = JSON.parse(raw);
-    } catch {/* ignore */ }
+    } catch {}
   }
 
   private saveCleared() {
     try {
       localStorage.setItem(this.storageClearedKey, JSON.stringify([...this.clearedSet]));
-    } catch {/* ignore */ }
+    } catch {}
   }
 
   private saveChoices() {
     try {
       localStorage.setItem(this.storageChoiceKey, JSON.stringify(this.choices));
-    } catch {/* ignore */ }
+    } catch {}
   }
 
-  // ---------- Mise à jour d’état
 
   public markNodeCleared(index: number) {
     if (!this.clearedSet.has(index)) {
@@ -164,7 +151,6 @@ export class MapScene extends Phaser.Scene {
     const layer = this.findLayerOf(index);
     if (layer < 0) return;
 
-    // Si un choix existe déjà et diffère, on ne le remplace pas (chemin figé)
     if (this.choices[layer] !== undefined && this.choices[layer] !== index) return;
 
     this.choices[layer] = index;
@@ -196,7 +182,6 @@ export class MapScene extends Phaser.Scene {
         if (prevChoice !== undefined) {
           available = parents.includes(prevChoice);
         } else {
-          // pas encore de choix au layer précédent => atteignable si un parent est déjà cleared
           available = parents.some(p => this.clearedSet.has(p));
         }
       }
@@ -206,7 +191,6 @@ export class MapScene extends Phaser.Scene {
     }
   }
 
-  // ---------- Utils
 
   private buildParents() {
     this.PARENTS = {};
