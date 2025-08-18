@@ -3,6 +3,8 @@ import { ButtonMenu } from '../../../shared/button-menu/button-menu';
 import { Logo } from '../../../shared/logo/logo';
 import { Profil } from "../../../features/profil/profil";
 import { AuthService } from '../../authentification-page/services/auth-service';
+import { SavegameService } from '../../../services/savegame.service';
+
 
 @Component({
   selector: 'app-title-menu',
@@ -16,10 +18,19 @@ export class TitleMenu implements OnInit {
   hasSave: boolean = false;
   showProfil: boolean = false;
 
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private saveSvc: SavegameService
+  ) {}
 
-  ngOnInit(): void {
+  async ngOnInit(): Promise<void> {
     this.username = localStorage.getItem('username');
-    this.hasSave = localStorage.getItem('save') !== null;
+
+    try {
+      const save = await this.saveSvc.getCurrent();
+      this.hasSave = !!save;
+    } catch {
+      this.hasSave = false;
+    }
   }
 }

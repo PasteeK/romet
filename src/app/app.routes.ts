@@ -5,7 +5,8 @@ import { ButtonMenu } from './shared/button-menu/button-menu';
 import { Home } from './page/authentification-page/home/home';
 import { Register } from './page/authentification-page/register/register';
 import { Login } from './page/authentification-page/login/login';
-import { Game } from './game/game';
+import { NewGamePage } from './page/menu-page/new-game-page/new-game-page';
+import { ContinuePage } from './page/menu-page/continue-page/continue-page';
 
 export const routes: Routes = [
     { path: '', component: Home },
@@ -14,7 +15,8 @@ export const routes: Routes = [
 
     { path: 'titlescreen', component: TitleScreenComponent },
     { path: 'titlemenu', component: TitleMenu },
-    { path: 'newGame', component: Game },
+    { path: 'newGame', component: NewGamePage },
+    { path: 'continue', component: ContinuePage },
 
     { path: 'test', component: ButtonMenu }
 ];

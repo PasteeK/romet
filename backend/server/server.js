@@ -13,8 +13,8 @@ app.use(cors());
 app.use(express.json());
 
 // Import et utilisation des routes
-const playerRoutes = require('./routes/player.routes');
-app.use('/players', playerRoutes);
+app.use('/players', require('./routes/player.routes'));
+app.use('/savegames', require('./routes/savegame.routes'));
 
 // MongoDB
 const PORT = process.env.PORT || 3000;

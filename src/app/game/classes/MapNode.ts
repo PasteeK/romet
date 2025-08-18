@@ -4,7 +4,7 @@ export class MapNode extends Phaser.GameObjects.Container {
   private hitZone: Phaser.GameObjects.Zone;
   private index: number;
 
-  private states: 'available' | 'blocked' | 'cleared' = 'available';
+  private states: 'available' | 'blocked' | 'cleared' = 'blocked';
 
   constructor(scene: Phaser.Scene, x: number, y: number, index: number, textureKey?: string) {
     super(scene, x, y);
@@ -38,9 +38,6 @@ export class MapNode extends Phaser.GameObjects.Container {
       if (this.states !== 'available') return;
 
       this.scene.game.events.emit('map:nodeSelected', this.index);
-
-      this.scene.scene.launch('MainScene', { nodeIndex: this.index });
-      this.scene.scene.sleep();
     });
 
     scene.add.existing(this);
