@@ -5,8 +5,10 @@ import { first, firstValueFrom } from 'rxjs';
 export type EventType = 'start' | 'fight' | 'elite' | 'shop' | 'smoking' | 'cheater' | 'boss';
 
 export interface MapNodeDTO {
-  id: string; x: number; y: number;
-  type: EventType;
+  id: string;
+  x: number;
+  y: number;
+  type: 'start' | 'fight' | 'elite' | 'boss' | string;
   neighbors: string[];
   state: 'locked' | 'available' | 'cleared';
 }
@@ -43,19 +45,27 @@ export interface CombatStateDTO {
 
 export interface SavegameDTO {
   _id: string;
-  status: 'in_progress' | 'won' | 'abandoned';
-  difficulty: 'easy' | 'normal' | 'hard';
   seed: number;
-  floor: number;
+  difficulty: 'normal' | 'hard' | string;
   mapNodes: MapNodeDTO[];
+  startNodeId: string;
   currentNodeId: string;
-  pathTaken: string[];
-  playerState: { hp: number; maxHp: number; gold: number }
-  decklist: CardInstanceDTO[];
-  drawOrder: string[]; discardOrder: string[]; exhaustOrder: string[];
-  combat: CombatStateDTO | null;
-  shop: any | null;
-  clientTick: number;
+
+  startingHp?: number;
+  maxHp?: number;
+  playerHp?: number;   // ← on normalise ici
+  currentHp?: number;  // legacy
+
+  combat?: {
+    ended?: boolean;
+    finished?: boolean;
+    finishedAt?: string;
+    result?: 'won' | 'lost' | 'escape' | string;
+    status?: string; // 'active' | 'finished' ...
+    state?: string;  // legacy
+  };
+
+  clientTick?: number;
 }
 
 @Injectable({
@@ -81,8 +91,13 @@ export class SavegameService {
     return firstValueFrom(this.http.post<SavegameDTO>(`${this.API}/start`, params));
   }
 
-  move(runId: string, body: { targetNodeId: string; clientTick: number}): Promise<SavegameDTO> {
-    return firstValueFrom(this.http.patch<SavegameDTO>(`${this.API}/${runId}/move`, body));
+  move(
+    runId: string,
+    body: { targetNodeId: string; clientTick?: number } // ← optionnel
+  ): Promise<SavegameDTO> {
+    return firstValueFrom(
+      this.http.patch<SavegameDTO>(`${this.API}/${runId}/move`, body)
+    );
   }
 
   combatStart(runId: string, body: {
@@ -97,13 +112,18 @@ export class SavegameService {
     return firstValueFrom(this.http.post<SavegameDTO>(`${this.API}/${runId}/combat/start`, body));
   }
 
-  combatEnd(runId: string, body: {
-    result: 'won' | 'lost';
-    playerHp: number;
-    goldDelta?: number;
-    addCards?: CardInstanceDTO[];
-    removeCardsIids?: string[];
-  }): Promise<SavegameDTO> {
-    return firstValueFrom(this.http.patch<SavegameDTO>(`${this.API}/${runId}/combat/end`, body));
+  combatEnd(
+    runId: string,
+    body: {
+      result: 'won' | 'lost';
+      playerHp: number;
+      goldDelta?: number;
+      addCards?: CardInstanceDTO[];
+      removeCardsIids?: string[];
+    }
+  ): Promise<SavegameDTO> {
+    return firstValueFrom(
+      this.http.post<SavegameDTO>(`${this.API}/${runId}/combat/end`, body)
+    );
   }
 }

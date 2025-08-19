@@ -91,7 +91,6 @@ export class MapScene extends Phaser.Scene {
     this.add.image(0, 0, 'ui_bg').setOrigin(0.5).setScale(1.25, 1.5);
 
     this.gameUI = new GameUI(this);
-    this.gameUI.setHP(100);
     this.gameUI.setGold(0);
     this.gameUI.setDiscard(0);
     this.gameUI.setScore('', 0);
@@ -152,12 +151,14 @@ export class MapScene extends Phaser.Scene {
 
       // ⬇️ si un combat existe et n'est pas explicitement terminé → on reprend
       if (this.isCombatActive(this.save)) {
+        this.game.registry.set('saveId', this.save._id);
         this.scene.launch('MainScene', { resumeFromSave: true, saveId: this.save._id });
         this.scene.sleep();
         return;
       }
 
       this.applySaveToNodes(this.save);
+      this.applySaveStatsToUI(this.save);
       this.wireNodeClicks();
     } catch (e: any) {
       console.warn('[MapScene] Erreur API:', e?.error || e);
@@ -165,6 +166,14 @@ export class MapScene extends Phaser.Scene {
         this.add.text(this.scale.width/2, 40, 'Non connecté (401).', { color: '#fff' }).setOrigin(0.5);
       }
     }
+
+    this.events.on('hp:update', (hp: number) => {
+      this.gameUI.setHP(hp);
+      if (this.save) {
+        (this.save as any).playerHp = hp;
+        (this.save as any).currentHp = hp;
+      }
+    });
 
     this.events.on(Phaser.Scenes.Events.WAKE, this.refreshFromServer);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -257,15 +266,43 @@ export class MapScene extends Phaser.Scene {
       this.save = await this.saveSvc.getCurrent();
       if (this.isCombatActive(this.save)) {
         // si on revient d'un back navigateur sur un combat encore actif → relance auto
+        if (this.save?._id) {
+          this.game.registry.set('saveId', this.save._id);
+        }
         this.scene.launch('MainScene', { resumeFromSave: true, saveId: this.save!._id });
         this.scene.sleep();
         return;
       }
-      if (this.save) this.applySaveToNodes(this.save);
+      if (this.save) {
+        this.applySaveToNodes(this.save);
+        this.applySaveStatsToUI(this.save);
+      }
     } catch (e) {
       console.warn('[MapScene] refreshFromServer error:', e);
     }
   };
+
+  private applySaveStatsToUI(save: SavegameDTO) {
+    // On cherche dans plusieurs emplacements possibles, sinon fallback 100
+    const hp =
+      (save as any).playerHp ??
+      (save as any).currentHp ??
+      (save as any).player?.hp ??
+      (save as any).startingHp ??
+      100;
+
+    this.gameUI.setHP(hp);
+
+    if (typeof (this.gameUI as any).setMaxHP === 'function') {
+      const max =
+        (save as any).maxHp ??
+        (save as any).player?.maxHp ??
+        100;
+      (this.gameUI as any).setMaxHP(max);
+    }
+  }
+
+
 
   private wireNodeClicks() {
     this.game.events.on('map:nodeSelected', async (index: number) => {
@@ -299,6 +336,7 @@ export class MapScene extends Phaser.Scene {
 
         // si le back dit qu'un combat est actif → on reprend direct
         if (this.isCombatActive(this.save)) {
+          this.game.registry.set('saveId', this.save._id);
           this.scene.launch('MainScene', { resumeFromSave: true, saveId: this.save._id });
           this.scene.sleep();
           return;
@@ -312,11 +350,13 @@ export class MapScene extends Phaser.Scene {
               monsters: [{ monsterId: 'arnak', hp: 250, maxHp: 250, block: 0, buffs: [] }]
             } as any);
 
+            this.game.registry.set('saveId', this.save._id);
             this.scene.launch('MainScene', { resumeFromSave: true, saveId: this.save._id });
             this.scene.sleep();
           } catch (err: any) {
             const msg = err?.error?.message || err?.message || '';
             if (err?.status === 400 && String(msg).toLowerCase().includes('combat already active')) {
+              this.game.registry.set('saveId', this.save._id);
               this.scene.launch('MainScene', { resumeFromSave: true, saveId: this.save!._id });
               this.scene.sleep();
             } else {
