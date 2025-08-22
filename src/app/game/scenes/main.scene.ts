@@ -36,7 +36,7 @@ export class MainScene extends Phaser.Scene {
     super("MainScene");
   }
 
-  init(data: { nodeIndex?: number; resumeFromSave?: boolean; saveId?: string }) {
+  init(data: { nodeIndex?: number; resumeFromSave?: boolean; saveId?: string; hp?: number }) {
     this.isEnding = false;
 
     this.selectedNodeIndex = data?.nodeIndex ?? null;
@@ -51,6 +51,10 @@ export class MainScene extends Phaser.Scene {
 
     this.time?.removeAllEvents();
     this.input?.removeAllListeners();
+
+    if (typeof data?.hp === 'number') {
+      this.game.registry.set('playerHp', data.hp);
+    }
 
     const inj = (window as any).ngInjector as Injector | undefined;
     if (inj && typeof (inj as any).get === "function") {
@@ -76,6 +80,7 @@ export class MainScene extends Phaser.Scene {
 
     this.load.image("bluffChips", "assets/monsters/sprites/bluffChips.png");
     this.load.image("arnak", "assets/monsters/sprites/arnak.png");
+    this.load.image("lowRollers", "assets/monsters/sprites/lowRollers.png");
   }
 
   create() {
@@ -119,24 +124,50 @@ export class MainScene extends Phaser.Scene {
 
       // Monstre
       const randomConfig = Phaser.Utils.Array.GetRandom(MONSTER_DEFINITIONS);
+      (this as any).currentMonsterConfig = randomConfig;
       this.monster = new Monster(
         this,
         this.scale.width - 150,
         285,
         randomConfig.texture,
         randomConfig.maxHP,
-        randomConfig.actions
+        randomConfig.actions,
       ).setScale(1.75);
 
-      this.events.once("monster:dead", () => this.onCombatWon());
+      this.events.once("monster:dead", () => {
+        const cfg: any = (this as any).currentMonsterConfig;
+        let reward = 0;
+        if (typeof cfg?.goldReward === 'number') {
+          reward = cfg.goldReward;
+        } else if (cfg?.goldReward?.min != null && cfg?.goldReward?.max != null) {
+          reward = Phaser.Math.Between(cfg.goldReward.min, cfg.goldReward.max);
+        }
+
+        // donner l'or au joueur
+        if (reward > 0) {
+          this.player.addGold(reward);
+          this.gameUI.setGold(this.player.getGold());
+          this.game.registry.set('gold', this.player.getGold());
+        }
+
+        // passe le delta au backend dans onCombatWon
+        (this as any)._lastGoldDelta = reward;
+
+        this.onCombatWon();
+      });
 
       // UI combat + joueur
-      this.gameUI = new GameUI(this);
-      this.gameUI.setGold(0);
+      this.gameUI = new GameUI(this)
+
+      const regGold = this.game.registry.get('gold');
+      this.gameUI.setGold(typeof regGold === 'number' ? regGold : 0);
+
       this.gameUI.setDiscard(MainScene.MAX_DISCARD - this.discardsUsed);
       this.gameUI.setScore("", 0);
 
-      this.player = new Player(this.gameUI);
+      const hpFromRegistry = this.game.registry.get('playerHp');
+
+      this.player = new Player(this.gameUI, typeof hpFromRegistry === 'number' ? hpFromRegistry : undefined);
 
       // Si on reprend depuis une sauvegarde, applique les PV stockés
       this.applyHpFromSaveIfAny();
@@ -364,13 +395,25 @@ export class MainScene extends Phaser.Scene {
     try {
         const save: any = await this.saveSvc.getCurrent();
         const hp =
-        save?.playerHp ??
-        save?.currentHp ??
-        save?.player?.hp ??
-        save?.startingHp ??
-        100;
+          save?.playerHp ??
+          save?.currentHp ??
+          save?.player?.hp ??
+          this.game.registry.get('playerHp') ??
+          100; 
 
         this.gameUI.setHP(hp);
+
+        const gold =
+          save?.gold ??
+          save?.player?.gold ??
+          this.game.registry.get('gold') ??
+          0;
+
+        this.gameUI.setGold(gold);
+        this.game.registry.set('gold', gold);
+        this.game.registry.set('playerHp', hp);
+
+        if (this.player) this.player.setGold(gold);
 
         const anyPlayer = this.player as any;
         if (typeof anyPlayer.setHP === 'function') {
@@ -421,28 +464,46 @@ export class MainScene extends Phaser.Scene {
     return this.handCards.length;
   }
 
+
   private monsterPlay() {
     this.playButton.setEnabled(false);
     this.discardButton.setEnabled(false);
 
-    const action = this.monster.playNextAction();
-    switch (action.type) {
-      case "attack":
-        this.player.takeDamage(action.value);
-        break;
-      case "defend":
-        this.monster.addShield(action.value);
-        break;
-      case "waiting":
-        break;
-      case "StealPercent":
-        this.player.stealGoldPercent(action.value);
-        break;
-    }
+    const cfg: any = (this as any).currentMonsterConfig || {};
+    const perTurn = Math.max(1, cfg.actionsPerTurn ?? 1);
 
-    this.time.delayedCall(1000, () => {
-      this.startPlayerTurn();
-    });
+    const doOne = () => {
+      const action = this.monster.playNextAction();
+      if (!action) return;
+
+      switch (action.type) {
+        case "attack":
+          this.player.takeDamage(action.value);
+          break;
+        case "defend":
+          this.monster.addShield(action.value);
+          break;
+        case "waiting":
+          break;
+        case "StealPercent":
+          this.player.stealGoldPercent(action.value);
+          break;
+      }
+    };
+
+    // enchaîne N actions avec un léger délai pour le feedback
+    let i = 0;
+    const runNext = () => {
+      if (i >= perTurn) {
+        this.time.delayedCall(300, () => this.startPlayerTurn());
+        return;
+      }
+      doOne();
+      i++;
+      this.time.delayedCall(250, runNext); // délai entre les 2 actions
+    };
+
+    runNext();
   }
 
   private startPlayerTurn() {
@@ -451,8 +512,16 @@ export class MainScene extends Phaser.Scene {
 
   private async onCombatWon() {
     const hpNow = this.player.getHP();
+    this.game.registry.set('playerHp', hpNow);
+
+    const goldNow = this.player.getGold();
+    this.game.registry.set('gold', goldNow);
+
+    const goldDelta = (this as any)._lastGoldDelta ?? 0
+
     const map = this.scene.get('MapScene') as Phaser.Scene | undefined;
     map?.events.emit('hp:update', hpNow);
+    map?.events.emit('gold:update', goldNow);
     
     if (this.isEnding) return;
     this.isEnding = true;
@@ -462,13 +531,12 @@ export class MainScene extends Phaser.Scene {
     this.playButton?.setEnabled(false);
     this.discardButton?.setEnabled(false);
 
-    // ✅ Envoie TOUJOURS les PV si on a une saveId (nouvelle partie OU reprise)
     if (this.saveSvc && this.saveId) {
       try {
         await this.saveSvc.combatEnd(this.saveId, {
           result: "won",
           playerHp: this.player.getHP(),
-          goldDelta: 0
+          goldDelta
         });
       } catch (e) {
         console.warn("[MainScene] combatEnd a échoué (on retourne quand même sur la map) :", e);

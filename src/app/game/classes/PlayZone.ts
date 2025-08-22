@@ -139,28 +139,28 @@ export class PlayZone {
         if (this.cards.length === 5) {
             if (isFlush && isStraight && sortedValues.includes(10)) {
                 handType = 'Quinte Flush Royale';
-                multiplier = 10;
+                multiplier = 20;
             } else if (isFlush && isStraight) {
                 handType = 'Quinte Flush';
-                multiplier = 8;
+                multiplier = 15;
             } else if (uniqueCounts === '41') {
                 handType = 'Carré';
-                multiplier = 7;
+                multiplier = 12;
             } else if (uniqueCounts === '32') {
                 handType = 'Full';
-                multiplier = 6;
+                multiplier = 8;
             } else if (isFlush) {
                 handType = 'Couleur';
-                multiplier = 5;
+                multiplier = 6;
             } else if (isStraight) {
                 handType = 'Suite';
-                multiplier = 4;
+                multiplier = 5;
             } else if (uniqueCounts === '311') {
                 handType = 'Brelan';
-                multiplier = 3;
+                multiplier = 4;
             } else if (uniqueCounts === '221') {
                 handType = 'Double Paire';
-                multiplier = 2;
+                multiplier = 2.5;
             } else if (uniqueCounts === '2111') {
                 handType = 'Paire';
                 multiplier = 1.5;
@@ -171,13 +171,13 @@ export class PlayZone {
         else if (this.cards.length === 4) {
             if (uniqueCounts === '4') {
                 handType = 'Carré';
-                multiplier = 7;
+                multiplier = 12;
             } else if (uniqueCounts === '31') {
                 handType = 'Brelan';
-                multiplier = 3;
+                multiplier = 4;
             } else if (uniqueCounts === '22') {
                 handType = 'Double Paire';
-                multiplier = 2;
+                multiplier = 2.5;
             } else if (uniqueCounts === '211') {
                 handType = 'Paire';
                 multiplier = 1.5;
@@ -188,7 +188,7 @@ export class PlayZone {
         else if (this.cards.length === 3) {
             if (uniqueCounts === '3') {
                 handType = 'Brelan';
-                multiplier = 3;
+                multiplier = 4;
             } else if (uniqueCounts === '21') {
                 handType = 'Paire';
                 multiplier = 1.5;

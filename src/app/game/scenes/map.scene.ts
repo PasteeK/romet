@@ -13,6 +13,8 @@ export class MapScene extends Phaser.Scene {
   private save: SavegameDTO | null = null;
 
   private forceNew = false;
+  private storageRunIdKey = 'romet.currentRunId.v1';
+  private storageForceOnce = 'romet.forceNew.once.v1';
 
   // legacy local
   private storageClearedKey = 'romet.clearedNodes.v1';
@@ -49,8 +51,6 @@ export class MapScene extends Phaser.Scene {
   constructor() { super('MapScene'); }
 
   init(data?: { clearedNodes?: number[]; forceNew?: boolean }) {
-    this.forceNew = !!data?.forceNew;
-
     const inj = (window as any).ngInjector as Injector | undefined;
     if (inj && typeof (inj as any).get === 'function') {
       this.saveSvc = (inj as any).get(SavegameService);
@@ -59,6 +59,10 @@ export class MapScene extends Phaser.Scene {
       if (regSvc) this.saveSvc = regSvc as SavegameService;
       else console.warn('[MapScene] SavegameService introuvable → mode offline.');
     }
+
+    // One-shot 'nouvelle partie'
+    const once = sessionStorage.getItem(this.storageForceOnce) === '1';
+    this.forceNew = once
 
     this.buildParents();
     this.loadPersistence();
@@ -91,7 +95,6 @@ export class MapScene extends Phaser.Scene {
     this.add.image(0, 0, 'ui_bg').setOrigin(0.5).setScale(1.25, 1.5);
 
     this.gameUI = new GameUI(this);
-    this.gameUI.setGold(0);
     this.gameUI.setDiscard(0);
     this.gameUI.setScore('', 0);
 
@@ -132,6 +135,11 @@ export class MapScene extends Phaser.Scene {
           startingHp: 100,
           maxHp: 100,
         });
+
+        // Consomme le flag one-shot + mémorise la run
+        sessionStorage.removeItem(this.storageForceOnce);
+        try { localStorage.setItem(this.storageRunIdKey, this.save._id); } catch {}
+        this.forceNew = false; // one-shot consommé
       } else {
         this.save = await this.saveSvc.getCurrent();
         if (!this.save) {
@@ -144,12 +152,20 @@ export class MapScene extends Phaser.Scene {
             startingHp: 100,
             maxHp: 100,
           });
+
+          // Consomme le flag one-shot + mémorise la run
+          sessionStorage.removeItem(this.storageForceOnce);
+          try { localStorage.setItem(this.storageRunIdKey, this.save._id); } catch {}
+          this.forceNew = false;
+        } else {
+          // Si on n'a PAS démarré une nouvelle partie, nettoie le flag one-shot s'il traînait
+          sessionStorage.removeItem(this.storageForceOnce);
         }
       }
 
       console.log('[SAVE] currentNodeId =', this.save.currentNodeId);
 
-      // ⬇️ si un combat existe et n'est pas explicitement terminé → on reprend
+      // Si un combat existe et n'est pas explicitement terminé → on reprend
       if (this.isCombatActive(this.save)) {
         this.game.registry.set('saveId', this.save._id);
         this.scene.launch('MainScene', { resumeFromSave: true, saveId: this.save._id });
@@ -167,12 +183,17 @@ export class MapScene extends Phaser.Scene {
       }
     }
 
+    // Sync instantanée depuis la scène combat
     this.events.on('hp:update', (hp: number) => {
       this.gameUI.setHP(hp);
       if (this.save) {
         (this.save as any).playerHp = hp;
         (this.save as any).currentHp = hp;
       }
+    });
+
+    this.events.on('gold:update', (gold: number) => {
+      this.gameUI.setGold(gold);
     });
 
     this.events.on(Phaser.Scenes.Events.WAKE, this.refreshFromServer);
@@ -283,7 +304,6 @@ export class MapScene extends Phaser.Scene {
   };
 
   private applySaveStatsToUI(save: SavegameDTO) {
-    // On cherche dans plusieurs emplacements possibles, sinon fallback 100
     const hp =
       (save as any).playerHp ??
       (save as any).currentHp ??
@@ -301,8 +321,6 @@ export class MapScene extends Phaser.Scene {
       (this.gameUI as any).setMaxHP(max);
     }
   }
-
-
 
   private wireNodeClicks() {
     this.game.events.on('map:nodeSelected', async (index: number) => {

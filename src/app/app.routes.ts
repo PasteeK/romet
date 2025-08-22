@@ -7,6 +7,7 @@ import { Register } from './page/authentification-page/register/register';
 import { Login } from './page/authentification-page/login/login';
 import { NewGamePage } from './page/menu-page/new-game-page/new-game-page';
 import { ContinuePage } from './page/menu-page/continue-page/continue-page';
+import { MapPage } from './page/map-page/map-page';
 
 export const routes: Routes = [
     { path: '', component: Home },
@@ -15,8 +16,7 @@ export const routes: Routes = [
 
     { path: 'titlescreen', component: TitleScreenComponent },
     { path: 'titlemenu', component: TitleMenu },
-    { path: 'newGame', component: NewGamePage },
-    { path: 'continue', component: ContinuePage },
+    { path: 'map', component: MapPage },
 
     { path: 'test', component: ButtonMenu }
 ];

@@ -11,15 +11,23 @@ import { Router } from '@angular/router';
 export class ButtonMenu {
   @Input() buttonText: string = 'Button';
   @Input() route: string | null = null;
-  @Output() clicked = new EventEmitter<void>();
   @Input() isDisabled: boolean = false;
+  @Input() newGame: boolean = false;   // ⬅️ ajouté
+  @Output() clicked = new EventEmitter<void>();
 
   constructor(private router: Router) {}
+
   handleClick() {
-    if (this.isDisabled) {
-      return;
-    } else if (this.route) {
-      this.router.navigate([this.route]);
+    if (this.isDisabled) return;
+
+    if (this.route) {
+      if (this.newGame) {
+        sessionStorage.setItem('romet.forceNew.once.v1', '1');
+      } else {
+        sessionStorage.removeItem('romet.forceNew.once.v1');
+      }
+
+      this.router.navigate([this.route], { replaceUrl: this.newGame });
     } else {
       this.clicked.emit();
     }

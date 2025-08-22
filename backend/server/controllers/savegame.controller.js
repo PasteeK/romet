@@ -1,4 +1,4 @@
-const Savegame = require('../models/savegame.model');
+const Savegame = require('../schemas/Savegame');
 
 // GET /savegames/current
 exports.getCurrent = async (_req, res) => {
