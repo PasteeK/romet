@@ -16,7 +16,6 @@ export class MapScene extends Phaser.Scene {
   private storageRunIdKey = 'romet.currentRunId.v1';
   private storageForceOnce = 'romet.forceNew.once.v1';
 
-  // legacy local
   private storageClearedKey = 'romet.clearedNodes.v1';
   private storageChoiceKey  = 'romet.pathChoices.v1';
   private clearedSet = new Set<number>();
@@ -60,9 +59,8 @@ export class MapScene extends Phaser.Scene {
       else console.warn('[MapScene] SavegameService introuvable → mode offline.');
     }
 
-    // One-shot 'nouvelle partie'
     const once = sessionStorage.getItem(this.storageForceOnce) === '1';
-    this.forceNew = once
+    this.forceNew = !!data?.forceNew || once;
 
     this.buildParents();
     this.loadPersistence();
@@ -75,6 +73,9 @@ export class MapScene extends Phaser.Scene {
     this.load.image('map', 'assets/images/map/map.png');
     this.load.image('ui_bg', 'assets/images/ui_bg.png');
     this.load.image('simple_fight', 'assets/images/events/simple_fight.png');
+    this.load.image('smoking', 'assets/images/events/smokingEvent.png');
+    this.load.image('elite', 'assets/images/events/eliteEvent.png');
+
   }
 
   private async waitFontsSafely(timeoutMs = 1200): Promise<void> {
@@ -83,7 +84,7 @@ export class MapScene extends Phaser.Scene {
       if (fonts?.ready) {
         await Promise.race([fonts.ready, new Promise<void>(r => setTimeout(r, timeoutMs))]);
       }
-    } catch { /* ignore */ }
+    } catch {  }
   }
 
   async create() {
@@ -126,6 +127,7 @@ export class MapScene extends Phaser.Scene {
 
     try {
       if (this.forceNew) {
+        // 👉 Nouvelle partie explicite uniquement ici
         const mapNodes = this.generateMapNodes(nodePositions);
         this.save = await this.saveSvc.start({
           seed: Date.now(),
@@ -139,33 +141,27 @@ export class MapScene extends Phaser.Scene {
         // Consomme le flag one-shot + mémorise la run
         sessionStorage.removeItem(this.storageForceOnce);
         try { localStorage.setItem(this.storageRunIdKey, this.save._id); } catch {}
-        this.forceNew = false; // one-shot consommé
-      } else {
-        this.save = await this.saveSvc.getCurrent();
-        if (!this.save) {
-          const mapNodes = this.generateMapNodes(nodePositions);
-          this.save = await this.saveSvc.start({
-            seed: Date.now(),
-            difficulty: 'normal',
-            mapNodes,
-            startNodeId: 'start',
-            startingHp: 100,
-            maxHp: 100,
-          });
+        this.forceNew = false;
 
-          // Consomme le flag one-shot + mémorise la run
-          sessionStorage.removeItem(this.storageForceOnce);
-          try { localStorage.setItem(this.storageRunIdKey, this.save._id); } catch {}
-          this.forceNew = false;
-        } else {
-          // Si on n'a PAS démarré une nouvelle partie, nettoie le flag one-shot s'il traînait
-          sessionStorage.removeItem(this.storageForceOnce);
+      } else {
+        // 👉 Continuer : on essaye de reprendre, on ne crée rien
+        this.save = await this.saveSvc.getCurrent();
+
+        if (!this.save) {
+          // Aucune sauvegarde → NE PAS créer de run ici
+          sessionStorage.removeItem(this.storageForceOnce); // nettoyage par sécurité
+          this.showNoSaveOverlay(); // Affiche un message et QUITTE
+          return;
         }
+
+        // Mémoriser l'id et nettoyer le flag s'il traînait
+        try { localStorage.setItem(this.storageRunIdKey, this.save._id); } catch {}
+        sessionStorage.removeItem(this.storageForceOnce);
       }
 
       console.log('[SAVE] currentNodeId =', this.save.currentNodeId);
 
-      // Si un combat existe et n'est pas explicitement terminé → on reprend
+      // Reprise combat direct si actif
       if (this.isCombatActive(this.save)) {
         this.game.registry.set('saveId', this.save._id);
         this.scene.launch('MainScene', { resumeFromSave: true, saveId: this.save._id });
@@ -173,9 +169,10 @@ export class MapScene extends Phaser.Scene {
         return;
       }
 
-      this.applySaveToNodes(this.save);
-      this.applySaveStatsToUI(this.save);
+      // Sinon affichage map
+      this.applyAndFixAfterServer(this.save);
       this.wireNodeClicks();
+
     } catch (e: any) {
       console.warn('[MapScene] Erreur API:', e?.error || e);
       if (e?.status === 401) {
@@ -203,39 +200,79 @@ export class MapScene extends Phaser.Scene {
     });
   }
 
+  private showNoSaveOverlay() {
+    const bg = this.add.rectangle(0,0,this.scale.width,this.scale.height,0x000000,0.55)
+      .setOrigin(0);
+    const t = this.add.text(
+      this.scale.width/2, this.scale.height/2,
+      'Aucune sauvegarde à reprendre.\nRetournez au menu et cliquez « Nouvelle partie ».',
+      { color: '#fff', fontSize: '22px', fontFamily: 'sans-serif', align: 'center' }
+    ).setOrigin(0.5);
+  }
+
   /**
    * Combat ACTIF = on reprend.
-   * Règle: s'il y a un objet combat → on considère actif SAUF si le back indique clairement la fin.
    */
   private isCombatActive(s: SavegameDTO | null | undefined): boolean {
     const c: any = s?.combat;
     if (!c) return false;
-
-    // 1) flags explicites de fin
     if (c.ended === true) return false;
     if (c.finished === true) return false;
     if (c.finishedAt) return false;
     if (typeof c.result === 'string' && c.result.length) return false;
-
-    // 2) status/state textuels
     const status = String(c.status ?? c.state ?? '').toLowerCase();
     if (['ended', 'finished', 'over', 'resolved', 'victory', 'defeat'].includes(status)) return false;
-
-    // 3) sinon => on part du principe qu'il est actif
     return true;
   }
 
   // ---------- Helpers serveur
 
   private generateMapNodes(positions: {x:number;y:number}[]): MapNodeDTO[] {
-    const nodes: MapNodeDTO[] = positions.map((p, i) => ({
-      id: `n${i}`,
-      x: p.x, y: p.y,
-      type: i >= 13 ? 'boss' : 'fight',
-      neighbors: (this.EDGES[i] || []).map(j => `n${j}`),
-      state: i <= 2 ? 'available' : 'locked',
-    }));
+    // Types "hors combat simple"
+    const NON_SIMPLE: Array<'elite' | 'shop' | 'smoking'> = ['elite', 'shop', 'smoking'];
 
+    // Pour mémoriser le type décidé par index, utile pour regarder les parents
+    const typeByIndex: Record<number, 'fight' | 'elite' | 'shop' | 'smoking' | 'boss'> = {};
+
+    const rollType = (): 'fight' | 'elite' | 'shop' | 'smoking' => {
+      // pondération (ajuste si tu veux)
+      // fight 55%, elite 15%, shop 15%, campfire 15%
+      const r = Math.random();
+      if (r < 0.85) return 'fight';
+      // if (r < 0.70) return 'elite';
+      // if (r < 0.85) return 'shop';
+      return 'smoking';
+    };
+
+    const nodes: MapNodeDTO[] = positions.map((p, i) => {
+      let type: 'fight' | 'elite' | 'shop' | 'smoking' | 'boss';
+
+      if (i >= 13) {
+        // Dernière ligne: boss
+        type = 'elite';
+      } else if (i <= 2) {
+        // Premier choix: combat simple
+        type = 'fight';
+      } else {
+        // Si un parent est "hors combat simple" → on force un 'fight'
+        const parents = this.PARENTS[i] || [];
+        const parentHasNonSimple = parents.some(pi => NON_SIMPLE.includes(typeByIndex[pi] as any));
+
+        type = parentHasNonSimple ? 'fight' : rollType();
+      }
+
+      typeByIndex[i] = type;
+
+      return {
+        id: `n${i}`,
+        x: p.x, y: p.y,
+        type,
+        neighbors: (this.EDGES[i] || []).map(j => `n${j}`),
+        state: i <= 2 ? 'available' : 'locked',
+      };
+    });
+
+    // Noeud de départ
     nodes.push({
       id: 'start',
       x: 0, y: 0,
@@ -247,6 +284,18 @@ export class MapScene extends Phaser.Scene {
     return nodes;
   }
 
+  private getTextureForType(type: string): string {
+    switch (type) {
+      case 'fight': return 'simple_fight';
+      case 'shop': return 'shop';
+      case 'smoking': return 'smoking';
+      case 'elite': return 'elite';
+      case 'boss': return 'boss';
+      default: return 'simple_fight';
+    }
+  }
+
+
   private applySaveToNodes(save: SavegameDTO) {
     for (let i = 0; i < this.nodes.length; i++) {
       const node = this.nodes[i];
@@ -254,7 +303,16 @@ export class MapScene extends Phaser.Scene {
 
       const id = `n${i}`;
       const dto = save.mapNodes.find((n: MapNodeDTO) => n.id === id);
-      if (!dto) { node.setBlocked(); continue; }
+      if (!dto) { 
+        node.setBlocked(); 
+        continue; 
+      }
+
+      node.setType(dto.type);
+
+      // 🔥 ici on change la texture selon le type
+      const tex = this.getTextureForType(dto.type);
+      node.setTexture(tex);
 
       if (dto.state === 'cleared') node.setCleared();
       else if (dto.state === 'available') node.setAvailable();
@@ -286,7 +344,6 @@ export class MapScene extends Phaser.Scene {
     try {
       this.save = await this.saveSvc.getCurrent();
       if (this.isCombatActive(this.save)) {
-        // si on revient d'un back navigateur sur un combat encore actif → relance auto
         if (this.save?._id) {
           this.game.registry.set('saveId', this.save._id);
         }
@@ -295,8 +352,7 @@ export class MapScene extends Phaser.Scene {
         return;
       }
       if (this.save) {
-        this.applySaveToNodes(this.save);
-        this.applySaveStatsToUI(this.save);
+        this.applyAndFixAfterServer(this.save);
       }
     } catch (e) {
       console.warn('[MapScene] refreshFromServer error:', e);
@@ -304,15 +360,16 @@ export class MapScene extends Phaser.Scene {
   };
 
   private applySaveStatsToUI(save: SavegameDTO) {
+    // HP
     const hp =
       (save as any).playerHp ??
       (save as any).currentHp ??
       (save as any).player?.hp ??
       (save as any).startingHp ??
       100;
-
     this.gameUI.setHP(hp);
 
+    // Max HP si dispo
     if (typeof (this.gameUI as any).setMaxHP === 'function') {
       const max =
         (save as any).maxHp ??
@@ -320,6 +377,14 @@ export class MapScene extends Phaser.Scene {
         100;
       (this.gameUI as any).setMaxHP(max);
     }
+
+    // 💰 GOLD — ajouté
+    const gold =
+      (save as any).playerGold ??
+      (save as any).gold ??
+      (save as any).player?.gold ??
+      0;
+    this.gameUI.setGold(gold);
   }
 
   private wireNodeClicks() {
@@ -360,6 +425,15 @@ export class MapScene extends Phaser.Scene {
           return;
         }
 
+        // 🚬 ———— CAS "SMOKING" ————
+        if (freshNode.type === 'smoking') {
+          this.game.registry.set('saveId', this.save._id);
+          this.scene.launch('SmokingScene', { saveId: this.save._id });
+          this.scene.sleep();
+          return;
+        }
+
+        // ⚔️ ———— CAS COMBAT ————
         if (['fight', 'elite', 'boss'].includes(freshNode.type)) {
           try {
             this.save = await this.saveSvc.combatStart(this.save._id, {
@@ -389,6 +463,7 @@ export class MapScene extends Phaser.Scene {
       }
     });
   }
+
 
   // ---------- Legacy local
 
@@ -420,6 +495,27 @@ export class MapScene extends Phaser.Scene {
         this.PARENTS[ch].push(f);
       });
     }
+  }
+
+  private postCombatUnlock(save: SavegameDTO) {
+    const cur = save.mapNodes.find(n => n.id === save.currentNodeId);
+    if (!cur) return;
+
+    if (cur.state !== 'cleared') cur.state = 'cleared';
+
+    for (const nid of cur.neighbors) {
+      const neighbor = save.mapNodes.find(n => n.id === nid);
+      if (!neighbor) continue;
+      if (neighbor.state !== 'cleared') neighbor.state = 'available';
+    }
+  }
+
+  private applyAndFixAfterServer(save: SavegameDTO) {
+    if (!this.isCombatActive(save)) {
+      this.postCombatUnlock(save);
+    }
+    this.applySaveToNodes(save);
+    this.applySaveStatsToUI(save);
   }
 
   private findLayerOf(index: number): number {

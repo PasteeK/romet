@@ -1,3 +1,5 @@
+const ICON_SIZE = 55;
+
 export class MapNode extends Phaser.GameObjects.Container {
   private background: Phaser.GameObjects.Graphics;
   private image?: Phaser.GameObjects.Image;
@@ -68,5 +70,32 @@ export class MapNode extends Phaser.GameObjects.Container {
     this.setAlpha(0.9);
     this.drawBackground(0x555555);
     this.hitZone.disableInteractive();
+  }
+
+  public setTexture(key: string): this {
+    if (!this.image) {
+      this.image = this.scene.add.image(0, 0, key).setDisplaySize(ICON_SIZE, ICON_SIZE).setOrigin(0.5);
+      this.addAt(this.image, 1);
+    } else {
+      this.image.setTexture(key).setDisplaySize(ICON_SIZE, ICON_SIZE);
+    }
+    return this;
+  }
+
+  public setType(type: 'fight' | 'elite' | 'boss' | 'shop' | 'smoking' | 'start' | string): this {
+    const key = this.mapTypeToTexture(type);
+    return this.setTexture(key);
+  }
+
+  private mapTypeToTexture(type: string): string {
+    switch (type) {
+      case 'fight':    return 'simple_fight';
+      case 'elite':    return 'elite';
+      case 'boss':     return 'boss';
+      case 'shop':     return 'shop';
+      case 'smoking': return 'smoking';
+      case 'start':    return 'simple_fight';
+      default:         return 'simple_fight';
+    }
   }
 }

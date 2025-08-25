@@ -126,4 +126,8 @@ export class SavegameService {
       this.http.post<SavegameDTO>(`${this.API}/${runId}/combat/end`, body)
     );
   }
+
+  patch(runId: string, body: Partial<SavegameDTO> & { playerHp?: number; gold?: number }): Promise<SavegameDTO> {
+    return firstValueFrom(this.http.patch<SavegameDTO>(`${this.API}/${runId}`, body));
+  }
 }

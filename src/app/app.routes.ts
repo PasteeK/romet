@@ -5,8 +5,6 @@ import { ButtonMenu } from './shared/button-menu/button-menu';
 import { Home } from './page/authentification-page/home/home';
 import { Register } from './page/authentification-page/register/register';
 import { Login } from './page/authentification-page/login/login';
-import { NewGamePage } from './page/menu-page/new-game-page/new-game-page';
-import { ContinuePage } from './page/menu-page/continue-page/continue-page';
 import { MapPage } from './page/map-page/map-page';
 
 export const routes: Routes = [

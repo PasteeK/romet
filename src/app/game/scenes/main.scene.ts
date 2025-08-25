@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { Monster } from "../classes/Monster";
+import { Monster, MonsterActionType } from "../classes/Monster";
 import { Card } from "../classes/Card";
 import { PlayZone } from "../classes/PlayZone";
 import { BtnEndTurn } from "../classes/BtnEndTurn";
@@ -22,6 +22,11 @@ export class MainScene extends Phaser.Scene {
   private discardButton!: BtnEndTurn;
   private static readonly MAX_DISCARD = 3;
   private discardsUsed = 0;
+
+  // Intent UI — marqués optionnels et créés "lazy" si besoin
+  private intentContainer?: Phaser.GameObjects.Container;
+  private intentIcon?: Phaser.GameObjects.Image | Phaser.GameObjects.Text;
+  private intentValueText?: Phaser.GameObjects.Text;
 
   private currentTurn: "player" | "monster" = "player";
 
@@ -87,6 +92,7 @@ export class MainScene extends Phaser.Scene {
     document.fonts.ready.then(() => {
       this.input.removeAllListeners();
 
+      // Drag unique (évite les doubles handlers)
       this.input.on("dragstart", (_: Phaser.Input.Pointer, go: Phaser.GameObjects.GameObject) => {
         if (go instanceof Card) go.setDepth(1000);
       });
@@ -101,7 +107,7 @@ export class MainScene extends Phaser.Scene {
         }
       });
 
-      // Décor + UI
+      // Décor + UI statique
       this.add.image(785, 0, "background").setOrigin(0.5, 0).setDisplaySize(this.scale.width / 1.25, this.scale.height / 1.42).setDepth(-10);
       this.add.tileSprite(0, 0, this.scale.width, this.scale.height, "tapis").setDisplaySize(this.scale.width * 2, this.scale.height * 2).setDepth(-12);
       this.add.image(0, 0, "ui_bg").setOrigin(0.5).setScale(1.25, 1.5);
@@ -112,17 +118,7 @@ export class MainScene extends Phaser.Scene {
       this.playButton    = new BtnEndTurn(this, this.scale.width - 190, BTN_Y, "Jouer");
       this.discardButton = new BtnEndTurn(this, this.scale.width -  80, BTN_Y, "Défausser");
 
-      this.scale.on("resize", (gameSize: Phaser.Structs.Size) => {
-        const width = gameSize.width;
-        const height = gameSize.height;
-        if (this.playZone) this.playZone.setPosition(width / 2 + 25, height - 335);
-        if (this.playButton) this.playButton.setPosition(width - 190, height - 280);
-        if (this.discardButton) this.discardButton.setPosition(width - 80, height - 280);
-        if (this.monster) this.monster.setPosition(width - 150, 285);
-        this.reorganizeHand();
-      });
-
-      // Monstre
+      // Monster
       const randomConfig = Phaser.Utils.Array.GetRandom(MONSTER_DEFINITIONS);
       (this as any).currentMonsterConfig = randomConfig;
       this.monster = new Monster(
@@ -134,6 +130,16 @@ export class MainScene extends Phaser.Scene {
         randomConfig.actions,
       ).setScale(1.75);
 
+      // Intent UI -> créer AVANT de s'abonner + init
+      this.createIntentUI();
+
+      // Un seul abonnement
+      this.monster.on('intent:changed', (next: { type: MonsterActionType; value: number }) => this.updateIntentUI(next));
+
+      // Init après que tout soit prêt
+      this.monster.initIntent();
+
+      // Mort du monstre
       this.events.once("monster:dead", () => {
         const cfg: any = (this as any).currentMonsterConfig;
         let reward = 0;
@@ -143,21 +149,18 @@ export class MainScene extends Phaser.Scene {
           reward = Phaser.Math.Between(cfg.goldReward.min, cfg.goldReward.max);
         }
 
-        // donner l'or au joueur
         if (reward > 0) {
           this.player.addGold(reward);
           this.gameUI.setGold(this.player.getGold());
           this.game.registry.set('gold', this.player.getGold());
         }
 
-        // passe le delta au backend dans onCombatWon
         (this as any)._lastGoldDelta = reward;
-
         this.onCombatWon();
       });
 
       // UI combat + joueur
-      this.gameUI = new GameUI(this)
+      this.gameUI = new GameUI(this);
 
       const regGold = this.game.registry.get('gold');
       this.gameUI.setGold(typeof regGold === 'number' ? regGold : 0);
@@ -166,7 +169,6 @@ export class MainScene extends Phaser.Scene {
       this.gameUI.setScore("", 0);
 
       const hpFromRegistry = this.game.registry.get('playerHp');
-
       this.player = new Player(this.gameUI, typeof hpFromRegistry === 'number' ? hpFromRegistry : undefined);
 
       // Si on reprend depuis une sauvegarde, applique les PV stockés
@@ -247,7 +249,7 @@ export class MainScene extends Phaser.Scene {
               !this.discardedCards.includes(`${c.suit}_${c.value}`)
           );
 
-          if (remaining.length < needed) {
+        if (remaining.length < needed) {
             const recycled = this.discardedCards.map((id) => {
               const [suit, value] = id.split("_");
               return { suit, value };
@@ -351,39 +353,38 @@ export class MainScene extends Phaser.Scene {
         this.discardButton.setEnabled(false);
       });
 
+      // réorg à la sortie de zone
       this.playZone.setOnCardRemoved((card: Card) => {
         const insertIndex = this.findInsertIndex(card);
         this.handCards.splice(insertIndex, 0, card);
         this.reorganizeHand();
       });
 
-      this.input.on("dragstart", (_: Phaser.Input.Pointer, gameObject: Phaser.GameObjects.GameObject) => {
-        if (gameObject instanceof Card) {
-          gameObject.setDepth(1000);
-        }
-      });
-      this.input.on("drag", (_: Phaser.Input.Pointer, gameObject: Phaser.GameObjects.GameObject, dragX: number, dragY: number) => {
-        if (gameObject instanceof Card) {
-          gameObject.x = dragX;
-          gameObject.y = dragY;
-        }
-      });
-      this.input.on("dragend", (pointer: Phaser.Input.Pointer, gameObject: Phaser.GameObjects.GameObject) => {
-        if (gameObject instanceof Card) {
-          gameObject.setDepth(0);
-          if (this.playZone.isInside(pointer.x, pointer.y)) {
-            this.tryPlayCard(gameObject);
-          } else {
-            (gameObject as Card).resetPosition();
-          }
-        }
+      // Resize
+      this.scale.on("resize", (gameSize: Phaser.Structs.Size) => {
+        const width = gameSize.width;
+        const height = gameSize.height;
+        if (this.playZone) this.playZone.setPosition(width / 2 + 25, height - 335);
+        if (this.playButton) this.playButton.setPosition(width - 190, height - 280);
+        if (this.discardButton) this.discardButton.setPosition(width - 80, height - 280);
+        if (this.monster) this.monster.setPosition(width - 150, 285);
+        this.reorganizeHand();
+        this.positionIntentNearMonster();
       });
 
+      // Cleanup
       this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
         this.handCards.forEach((c) => c.destroy());
         this.handCards = [];
         this.usedCards = [];
         this.discardedCards = [];
+
+        // 🔥 Nettoyage UI d’intention
+        this.intentContainer?.destroy();
+        this.intentIcon = undefined;
+        this.intentValueText = undefined;
+        this.intentContainer = undefined;
+
         this.input.removeAllListeners();
         this.time.removeAllEvents();
       });
@@ -393,41 +394,41 @@ export class MainScene extends Phaser.Scene {
   private async applyHpFromSaveIfAny() {
     if (!this.saveSvc) return;
     try {
-        const save: any = await this.saveSvc.getCurrent();
-        const hp =
-          save?.playerHp ??
-          save?.currentHp ??
-          save?.player?.hp ??
-          this.game.registry.get('playerHp') ??
-          100; 
+      const save: any = await this.saveSvc.getCurrent();
+      const hp =
+        save?.playerHp ??
+        save?.currentHp ??
+        save?.player?.hp ??
+        this.game.registry.get('playerHp') ??
+        100;
 
-        this.gameUI.setHP(hp);
+      this.gameUI.setHP(hp);
 
-        const gold =
-          save?.gold ??
-          save?.player?.gold ??
-          this.game.registry.get('gold') ??
-          0;
+      const gold =
+        save?.gold ??
+        save?.player?.gold ??
+        this.game.registry.get('gold') ??
+        0;
 
-        this.gameUI.setGold(gold);
-        this.game.registry.set('gold', gold);
-        this.game.registry.set('playerHp', hp);
+      this.gameUI.setGold(gold);
+      this.game.registry.set('gold', gold);
+      this.game.registry.set('playerHp', hp);
 
-        if (this.player) this.player.setGold(gold);
+      if (this.player) this.player.setGold(gold);
 
-        const anyPlayer = this.player as any;
-        if (typeof anyPlayer.setHP === 'function') {
+      const anyPlayer = this.player as any;
+      if (typeof anyPlayer.setHP === 'function') {
         anyPlayer.setHP(hp);
-        } else if (typeof anyPlayer.getHP === 'function') {
+      } else if (typeof anyPlayer.getHP === 'function') {
         const cur = anyPlayer.getHP();
         if (hp < cur && typeof anyPlayer.takeDamage === 'function') {
-            anyPlayer.takeDamage(cur - hp);
+          anyPlayer.takeDamage(cur - hp);
         } else if (hp > cur && typeof anyPlayer.heal === 'function') {
-            anyPlayer.heal(hp - cur);
+          anyPlayer.heal(hp - cur);
         }
-        }
+      }
     } catch { /* ignore */ }
-    }
+  }
 
   private tryPlayCard(card: Card) {
     if (this.playZone.containsCard(card)) return;
@@ -464,7 +465,6 @@ export class MainScene extends Phaser.Scene {
     return this.handCards.length;
   }
 
-
   private monsterPlay() {
     this.playButton.setEnabled(false);
     this.discardButton.setEnabled(false);
@@ -491,7 +491,6 @@ export class MainScene extends Phaser.Scene {
       }
     };
 
-    // enchaîne N actions avec un léger délai pour le feedback
     let i = 0;
     const runNext = () => {
       if (i >= perTurn) {
@@ -500,7 +499,7 @@ export class MainScene extends Phaser.Scene {
       }
       doOne();
       i++;
-      this.time.delayedCall(250, runNext); // délai entre les 2 actions
+      this.time.delayedCall(250, runNext);
     };
 
     runNext();
@@ -510,6 +509,60 @@ export class MainScene extends Phaser.Scene {
     this.currentTurn = "player";
   }
 
+  private positionIntentNearMonster() {
+    if (!this.monster || !this.intentContainer) return;
+    const p = (this.monster as any).getHpBarAnchor?.();
+    if (p) {
+      this.intentContainer.setPosition(p.x - 20, p.y);
+    } else {
+      this.intentContainer.setPosition(this.monster.x - 100, this.monster.y - 80);
+    }
+  }
+
+  private createIntentUI() {
+    if (this.intentContainer) return; // déjà créée
+
+    this.intentIcon = this.add.text(0, 0, '?', {
+      fontFamily: 'romet',
+      fontSize: '24px',
+      color: '#ffffff'
+    }).setOrigin(0.5);
+
+    this.intentValueText = this.add.text(-25, 0, '0', {
+      fontFamily: 'romet',
+      fontSize: '24px',
+      color: '#ffffff'
+    }).setOrigin(0.5);
+
+    this.intentContainer = this.add.container(0, 0, [this.intentIcon, this.intentValueText]).setDepth(200);
+    this.positionIntentNearMonster();
+  }
+
+  private updateIntentUI(next: { type: MonsterActionType; value: number }) {
+    // Lazy create si pas encore prête
+    if (!this.intentIcon || !this.intentValueText || !this.intentContainer) {
+      this.createIntentUI();
+    }
+
+    const mapText: Record<MonsterActionType, string> = {
+      attack: '⚔',
+      defend: '🛡',
+      waiting: '⏳',
+      StealPercent: '💰',
+      heal: '➕',
+      buff: '✨',
+      debuff: '☠️'
+    };
+
+    if (this.intentIcon instanceof Phaser.GameObjects.Text) {
+      this.intentIcon.setText(mapText[next.type] || '❓' as any);
+    }
+    const valueLabel = next.type === 'StealPercent' ? `${next.value}%` : `${next.value}`;
+    this.intentValueText!.setText(valueLabel);
+
+    this.positionIntentNearMonster();
+  }
+
   private async onCombatWon() {
     const hpNow = this.player.getHP();
     this.game.registry.set('playerHp', hpNow);
@@ -517,12 +570,12 @@ export class MainScene extends Phaser.Scene {
     const goldNow = this.player.getGold();
     this.game.registry.set('gold', goldNow);
 
-    const goldDelta = (this as any)._lastGoldDelta ?? 0
+    const goldDelta = (this as any)._lastGoldDelta ?? 0;
 
     const map = this.scene.get('MapScene') as Phaser.Scene | undefined;
     map?.events.emit('hp:update', hpNow);
     map?.events.emit('gold:update', goldNow);
-    
+
     if (this.isEnding) return;
     this.isEnding = true;
 

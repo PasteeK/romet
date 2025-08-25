@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 import { MainScene } from './scenes/main.scene';
 import { MapScene } from './scenes/map.scene';
 import { SavegameService } from '../services/savegame.service';
+import { SmokingScene } from './scenes/smoking.scene';
 
 @Component({
   selector: 'app-game',
@@ -40,6 +41,7 @@ export class Game implements AfterViewInit, OnDestroy {
     // Ajout manuel des scènes, actives = false
     this.phaserGame.scene.add('MapScene', MapScene, false);
     this.phaserGame.scene.add('MainScene', MainScene, false);
+    this.phaserGame.scene.add('SmokingScene', SmokingScene, false);
 
     // Registry: service pour les scènes
     this.phaserGame.registry.set('saveSvc', this.saveSvc);
