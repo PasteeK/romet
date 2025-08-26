@@ -88,6 +88,7 @@ export class MapScene extends Phaser.Scene {
   }
 
   async create() {
+    this.cameras.main.fadeIn(200, 0, 0, 0);
     await this.waitFontsSafely(1200);
 
     // Décor + UI

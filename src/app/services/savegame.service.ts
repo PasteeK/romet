@@ -130,4 +130,10 @@ export class SavegameService {
   patch(runId: string, body: Partial<SavegameDTO> & { playerHp?: number; gold?: number }): Promise<SavegameDTO> {
     return firstValueFrom(this.http.patch<SavegameDTO>(`${this.API}/${runId}`, body));
   }
+
+  async saveStats(runId: string, stats: { playerHp?: number; gold?: number; maxHp?: number }): Promise<SavegameDTO> {
+    return firstValueFrom(
+      this.http.patch<SavegameDTO>(`${this.API}/${runId}`, stats)
+    );
+  }
 }

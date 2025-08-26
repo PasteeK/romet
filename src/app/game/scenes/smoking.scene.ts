@@ -1,77 +1,113 @@
-// src/app/game/scenes/smoking.scene.ts
-import Phaser from "phaser";
-import { SavegameService } from "../../services/savegame.service";
-import { Injector } from "@angular/core";
+import Phaser from 'phaser';
+import { Injector } from '@angular/core';
+import { SavegameService } from '../../services/savegame.service';
 
 export class SmokingScene extends Phaser.Scene {
   private saveSvc?: SavegameService;
   private saveId?: string;
 
-  constructor() { super("SmokingScene"); }
+  constructor() { super('SmokingScene'); }
 
   init(data: { saveId?: string }) {
-    this.saveId = data?.saveId;
+    this.saveId = data?.saveId || this.game.registry.get('saveId');
 
-    const inj = (window as any).ngInjector as Injector | undefined;
-    if (inj && typeof (inj as any).get === "function") {
-      this.saveSvc = (inj as any).get(SavegameService);
+    const inj = (window as any).ngInjector;
+    if (inj && typeof inj.get === 'function') {
+      this.saveSvc = inj.get(SavegameService);
     } else {
-      const regSvc = this.game.registry.get("saveSvc");
+      const regSvc = this.game.registry.get('saveSvc');
       if (regSvc) this.saveSvc = regSvc as SavegameService;
     }
   }
 
-  async create() {
-    this.cameras.main.setBackgroundColor('#121212');
-    this.add.text(this.scale.width/2, 80, 'Smoking Area', { fontFamily:'romet', fontSize:'42px', color:'#fff' }).setOrigin(0.5);
-    this.add.text(this.scale.width/2, 120, "Smoking Area", {
-      fontSize: "48px",
-      color: "#fff",
-      fontFamily: "romet",
+  preload() {
+    this.load.image('smokingBG', 'assets/images/smoking.png');
+    this.load.image('pointerRight', 'assets/icons/pointerRight.png');
+  }
+
+  create() {
+    // simple UI
+    this.add.image(this.scale.width/2, this.scale.height/2, 'smokingBG').setOrigin(0.5);
+    this.add.text(this.scale.width/2, this.scale.height/2 - 200, 'Zone Fumeur', {
+      color: '#ffffff', fontSize: '48px', fontFamily: 'romet'
     }).setOrigin(0.5);
 
-    let heal = 0, newHp = 0, maxHp = 100;
+    const btn = this.add.text(this.scale.width/2, this.scale.height/2 + 200,
+      "S'en griller une. (+15% des PV manquants)", { color: '#F7A03C', fontSize: '32px', fontFamily: 'romet' }
+    ).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    
+    btn.on('pointerup', () => {
+      this.cameras.main.fadeOut(1500, 0, 0, 0);
+      setTimeout(() => {
+        this.applyHealAndReturn();
+      }, 1500);
+    })
 
-    if (this.saveSvc && this.saveId) {
-      try {
-        const save: any = await this.saveSvc.getCurrent();
-        const hp = save?.playerHp ?? save?.currentHp ?? save?.player?.hp ?? save?.startingHp ?? 100;
-        maxHp = save?.maxHp ?? save?.player?.maxHp ?? 100;
+    let pointer: Phaser.GameObjects.Image | null = null;
 
-        const missing = Math.max(0, maxHp - hp);
-        heal = Math.floor(missing * 0.15);
-        newHp = Math.min(maxHp, hp + heal);
-
-        // PATCH de la run côté serveur
-        await this.saveSvc.patch(this.saveId, { playerHp: newHp });
-
-        // met à jour l’UI Map si elle est déjà en mémoire
-        const map = this.scene.get('MapScene');
-        map?.events.emit('hp:update', newHp);
-      } catch (e) {
-        console.warn("[SmokingScene] heal error:", e);
+    btn.on('pointerover', () => {
+      btn.setStyle({ color: '#ffffff' });
+      btn.setScale(1.1);
+      if (pointer) {
+        pointer.destroy();
       }
+      pointer = this.add.image(btn.x - 380, btn.y, 'pointerRight').setOrigin(0.5);
+    });
+
+    btn.on('pointerout', () => {
+      btn.setStyle({ color: '#F7A03C' });
+      btn.setScale(1);
+
+      if (pointer) {
+        pointer.destroy();
+        pointer = null;
+      }
+    });
+
+  }
+
+  private async applyHealAndReturn() {
+    if (!this.saveSvc || !this.saveId) {
+      this.exitToMap();
+      return;
     }
 
-    this.add.text(this.scale.width/2, 220,
-      `Vous faites une pause clope.\n+${heal} PV (${newHp}/${maxHp})`,
-      { fontSize: "24px", color: "#0f0", fontFamily: "romet", align: 'center' }
-    ).setOrigin(0.5);
+    try {
+      // 1) On récupère la save pour calculer le heal
+      const save: any = await this.saveSvc.getCurrent();
+      const max  = save?.maxHp ?? save?.player?.maxHp ?? 100;
+      const cur  = save?.playerHp ?? save?.currentHp ?? save?.player?.hp ?? save?.startingHp ?? max;
 
-    const btn = this.add.text(this.scale.width/2, this.scale.height - 120, "Retour à la carte", {
-      fontSize: "28px",
-      color: "#FFD700",
-      fontFamily: "romet",
-      backgroundColor: "#333",
-      padding: { x: 20, y: 10 }
-    }).setOrigin(0.5).setInteractive();
+      const missing = Math.max(0, max - cur);
+      const healed  = Math.ceil(missing * 0.15);
+      const newHp   = Math.min(max, cur + healed);
 
-    btn.on("pointerover", () => btn.setColor("#fff"));
-    btn.on("pointerout", () => btn.setColor("#FFD700"));
-    btn.on("pointerdown", () => {
-      if (this.scene.isSleeping("MapScene")) this.scene.wake("MapScene");
-      else this.scene.start("MapScene");
-      this.scene.stop();
-    });
+      // 2) MAJ instantanée côté map (UX)
+      const map = this.scene.get('MapScene');
+      map?.events.emit('hp:update', newHp);
+
+      // 3) Persistance serveur (si la route existe)
+      try {
+        await this.saveSvc.saveStats(this.saveId, { playerHp: newHp });
+      } catch (err) {
+        console.warn('[SmokingScene] PATCH /savegames/:id a échoué → heal non persistant après refresh.', err);
+        // Ici, tu peux afficher une bannière / toast si tu veux prévenir le joueur.
+      }
+
+      // 4) (facultatif) Demande un refresh au retour sur la map
+      (map as any)?.refreshFromServer?.();
+
+    } catch (e) {
+      console.warn('[SmokingScene] heal error (getCurrent ou calcul):', e);
+    } finally {
+      this.exitToMap();
+    }
+  }
+
+
+  private exitToMap() {
+    this.scene.stop();                   // ferme SmokingScene
+    this.scene.wake('MapScene');         // réveille la Map
+    this.scene.bringToTop('MapScene');   // remet la Map au-dessus
   }
 }

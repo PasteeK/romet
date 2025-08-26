@@ -23,6 +23,50 @@ export class MainScene extends Phaser.Scene {
   private static readonly MAX_DISCARD = 3;
   private discardsUsed = 0;
 
+  private sortMode: 'none' | 'value' | 'suit' | 'suitThenValue' | 'valueThenSuit' = 'none';
+
+  private readonly valueOrder = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+  private readonly suitOrder = ['clubs', 'diamond', 'heart', 'spade'];
+
+  private compareByValue = (a: Card, b: Card) => {
+    const av = this.valueOrder.indexOf(a.value);
+    const bv = this.valueOrder.indexOf(b.value);
+    if (av !== bv) return av - bv;
+    const as = this.suitOrder.indexOf(a.suit);
+    const bs = this.suitOrder.indexOf(b.suit);
+    return as - bs;
+  }
+
+  private compareBySuit = (a: Card, b: Card) => {
+    const as = this.suitOrder.indexOf(a.suit);
+    const bs = this.suitOrder.indexOf(b.suit);
+    if (as !== bs) return as - bs;
+    const av = this.valueOrder.indexOf(a.value);
+    const bv = this.valueOrder.indexOf(b.value);
+    return av - bv;
+  }
+
+  private sortHand() {
+    switch (this.sortMode) {
+      case 'value' : this.handCards.sort(this.compareByValue); break;
+      case 'suit' : this.handCards.sort(this.compareBySuit); break;
+      case 'valueThenSuit':
+        this.handCards.sort((a, b) => {
+          const primary = this.compareByValue(a, b);
+          return primary !== 0 ? primary : this.compareBySuit(a, b);
+        });
+        break;
+      case 'suitThenValue':
+        this.handCards.sort((a,b)=> {
+          const primary = this.compareBySuit(a,b);
+          return primary !== 0 ? primary : this.compareByValue(a,b);
+        });
+        break;
+      case 'none':
+      default: break;
+    }
+  }
+
   // Intent UI — marqués optionnels et créés "lazy" si besoin
   private intentContainer?: Phaser.GameObjects.Container;
   private intentIcon?: Phaser.GameObjects.Image | Phaser.GameObjects.Text;
@@ -89,6 +133,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   create() {
+    this.cameras.main.fadeIn(200, 0, 0, 0);
     document.fonts.ready.then(() => {
       this.input.removeAllListeners();
 
@@ -132,6 +177,46 @@ export class MainScene extends Phaser.Scene {
 
       // Intent UI -> créer AVANT de s'abonner + init
       this.createIntentUI();
+      
+      const sortByValueText = this.add.text(this.scale.width - 140, this.scale.height - 195, 'Valeur', {
+        color: '#FFD700', fontFamily: 'romet', fontSize: '18px'
+      }).setInteractive({ useHandCursor: true });
+
+      const sortBySuitText = this.add.text(this.scale.width - 220, this.scale.height - 195, 'Couleur', {
+        color: '#FFD700', fontFamily: 'romet', fontSize: '18px'
+      }).setInteractive({ useHandCursor: true });
+
+      const sortResetText = this.add.text(this.scale.width - 280, this.scale.height - 195, '', {
+        color: '#FFD700', fontFamily: 'romet', fontSize: '18px'
+      }).setInteractive({ useHandCursor: true });
+
+      sortByValueText.on('pointerup', () => {
+        this.sortMode = 'value';
+        this.sortHand();
+        this.reorganizeHand();
+      });
+
+      sortBySuitText.on('pointerup', () => {
+        this.sortMode = 'suit';
+        this.sortHand();
+        this.reorganizeHand();
+      });
+
+      sortResetText.on('pointerup', () => {
+        this.sortMode = 'none';
+        this.reorganizeHand(); // pas besoin de re-trier
+      });
+
+      // Raccourcis clavier (V, S, N)
+      this.input.keyboard?.on('keydown-V', () => {
+        this.sortMode = 'value'; this.sortHand(); this.reorganizeHand();
+      });
+      this.input.keyboard?.on('keydown-S', () => {
+        this.sortMode = 'suit'; this.sortHand(); this.reorganizeHand();
+      });
+      this.input.keyboard?.on('keydown-N', () => {
+        this.sortMode = 'none'; this.reorganizeHand();
+      });
 
       // Un seul abonnement
       this.monster.on('intent:changed', (next: { type: MonsterActionType; value: number }) => this.updateIntentUI(next));
@@ -224,6 +309,9 @@ export class MainScene extends Phaser.Scene {
           });
         });
       }
+      // Tri + placement initial de la main
+      this.sortHand();
+      this.reorganizeHand();
 
       this.playButton.onClick(() => {
         this.playZone.getCards().forEach((card) => {
@@ -249,7 +337,7 @@ export class MainScene extends Phaser.Scene {
               !this.discardedCards.includes(`${c.suit}_${c.value}`)
           );
 
-        if (remaining.length < needed) {
+          if (remaining.length < needed) {
             const recycled = this.discardedCards.map((id) => {
               const [suit, value] = id.split("_");
               return { suit, value };
@@ -278,6 +366,7 @@ export class MainScene extends Phaser.Scene {
             });
           }
 
+          this.sortHand();
           this.reorganizeHand();
         }
 
@@ -343,6 +432,7 @@ export class MainScene extends Phaser.Scene {
             });
           }
 
+          this.sortHand();
           this.reorganizeHand();
         }
 
@@ -357,6 +447,7 @@ export class MainScene extends Phaser.Scene {
       this.playZone.setOnCardRemoved((card: Card) => {
         const insertIndex = this.findInsertIndex(card);
         this.handCards.splice(insertIndex, 0, card);
+        this.sortHand();
         this.reorganizeHand();
       });
 
@@ -368,6 +459,7 @@ export class MainScene extends Phaser.Scene {
         if (this.playButton) this.playButton.setPosition(width - 190, height - 280);
         if (this.discardButton) this.discardButton.setPosition(width - 80, height - 280);
         if (this.monster) this.monster.setPosition(width - 150, 285);
+        this.sortHand();               // (optionnel mais utile)
         this.reorganizeHand();
         this.positionIntentNearMonster();
       });
@@ -436,6 +528,7 @@ export class MainScene extends Phaser.Scene {
       this.playZone.addCard(card);
       const index = this.handCards.indexOf(card);
       if (index !== -1) this.handCards.splice(index, 1);
+      this.sortHand();
       this.reorganizeHand();
     } else {
       card.resetPosition();

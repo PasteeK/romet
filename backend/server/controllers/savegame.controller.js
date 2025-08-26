@@ -124,3 +124,18 @@ exports.combatEnd = async (req, res) => {
   await save.save();
   res.json(save);
 };
+
+exports.patch = async (req, res) => {
+  const { id } = req.params;
+  const { playerHp, gold, maxHp } = req.body || {};
+
+  const save = await Savegame.findById(id);
+  if (!save) return res.status(404).send({ message: 'Save not found' });
+
+  if (typeof playerHp === 'number') save.playerHp = playerHp;
+  if (typeof gold === 'number') save.gold = gold;
+  if (typeof maxHp === 'number') save.maxHp = maxHp;
+
+  await save.save();
+  res.json(save);
+}
