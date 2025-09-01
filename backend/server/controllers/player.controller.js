@@ -37,15 +37,32 @@ const updatePlayer = async (req, res) => {
 // Controlleur permettant de récupérer un joueur par son id
 const getMe = async (req, res) => {
   try {
-    console.log('🆔 ID extrait du token :', req.user.id);
-    const user = await Player.findById(req.user.id).select('username email gamesPlayed');
-    if (!user) {
-        return res.status(404).json({ message: 'Utilisateur non trouvé' });
-    }
-    console.log('🎮 Games Played:', user.gamesPlayed);
-    res.json({ pseudo: user.username, email: user.email, gamesPlayed: user.gamesPlayed });
+    const user = await Player.findById(req.user.id)
+      .select('username email gamesPlayed preferences');
+    if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
+
+    res.json({
+      pseudo: user.username,
+      email: user.email,
+      gamesPlayed: user.gamesPlayed,
+      preferences: user.preferences
+    });
   } catch (err) {
     res.status(500).json({ message: 'Erreur serveur' });
+  }
+};
+
+// Controlleur permettant de mettre à jour les préférences du joueur
+const setTutorial = async (req, res) => {
+  try {
+    const { action } = req.body || {};
+    const prefs = await playerService.setTutorialState(
+      req.user.id,
+      action,
+    );
+    res.status(200).json({ preferences: prefs });
+  } catch (err) {
+    res.status(err.status || 500).json({ message: err.message || 'Erreur serveur' });
   }
 };
 
@@ -113,5 +130,6 @@ module.exports = {
     incrementGamesPlayed,
     login,
     deletePlayer,
-    deletePlayerById
+    deletePlayerById,
+    setTutorial
 }

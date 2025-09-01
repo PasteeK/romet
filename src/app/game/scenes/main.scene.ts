@@ -6,9 +6,11 @@ import { BtnEndTurn } from "../classes/BtnEndTurn";
 import { GameUI } from "../classes/GameUI";
 import { Player } from "../classes/Player";
 import { MONSTER_DEFINITIONS } from "../classes/monsters/simpleMonster";
+import { BOSS_DEFINITIONS } from "../classes/monsters/bossMonster";
 
 import { Injector } from "@angular/core";
 import { SavegameService } from "../../services/savegame.service";
+import { EncounterType } from "../types/encounter";
 
 export class MainScene extends Phaser.Scene {
   private playZone!: PlayZone;
@@ -20,7 +22,7 @@ export class MainScene extends Phaser.Scene {
   private player!: Player;
   private playButton!: BtnEndTurn;
   private discardButton!: BtnEndTurn;
-  private static readonly MAX_DISCARD = 3;
+  private static readonly MAX_DISCARD = 2;
   private discardsUsed = 0;
 
   private sortMode: 'none' | 'value' | 'suit' | 'suitThenValue' | 'valueThenSuit' = 'none';
@@ -28,6 +30,16 @@ export class MainScene extends Phaser.Scene {
   private readonly valueOrder = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
   private readonly suitOrder = ['clubs', 'diamond', 'heart', 'spade'];
 
+  private encounterType: EncounterType = 'normal';
+
+  public getTargetBounds(key: string) {
+    if (key === 'leftInfo') {
+      return this.gameUI.getBounds();
+    }
+    return null;
+  }
+
+  // Compare les cartes par leur valeur
   private compareByValue = (a: Card, b: Card) => {
     const av = this.valueOrder.indexOf(a.value);
     const bv = this.valueOrder.indexOf(b.value);
@@ -37,6 +49,7 @@ export class MainScene extends Phaser.Scene {
     return as - bs;
   }
 
+  // Compare les cartes par leur couleur
   private compareBySuit = (a: Card, b: Card) => {
     const as = this.suitOrder.indexOf(a.suit);
     const bs = this.suitOrder.indexOf(b.suit);
@@ -46,6 +59,7 @@ export class MainScene extends Phaser.Scene {
     return av - bv;
   }
 
+  // Tri de la main
   private sortHand() {
     switch (this.sortMode) {
       case 'value' : this.handCards.sort(this.compareByValue); break;
@@ -85,12 +99,14 @@ export class MainScene extends Phaser.Scene {
     super("MainScene");
   }
 
-  init(data: { nodeIndex?: number; resumeFromSave?: boolean; saveId?: string; hp?: number }) {
+  init(data: { nodeIndex?: number; resumeFromSave?: boolean; saveId?: string; hp?: number; encounterType?: EncounterType }) {
     this.isEnding = false;
 
     this.selectedNodeIndex = data?.nodeIndex ?? null;
     this.resumeFromSave = !!data?.resumeFromSave;
     this.saveId = data?.saveId;
+
+    this.encounterType = data?.encounterType ?? this.game.registry.get('encounterType') ?? 'normal';
 
     this.handCards = [];
     this.usedCards = [];
@@ -115,10 +131,13 @@ export class MainScene extends Phaser.Scene {
   }
 
   preload() {
+    // UI
     this.load.image("background", "assets/images/fight_background.png");
+    this.load.image("boss_background", "assets/images/bossfight_background.png");
     this.load.image("tapis", "assets/images/tapis_bg.png");
     this.load.image("ui_bg", "assets/images/ui_bg.png");
 
+    // Cartes
     const values = ["2","3","4","5","6","7","8","9","10","J","Q","K","A"];
     values.forEach((value) => {
       this.load.image(`diamond_${value}`, `assets/cards/diamond_${value}.svg`);
@@ -127,12 +146,23 @@ export class MainScene extends Phaser.Scene {
       this.load.image(`clubs_${value}`, `assets/cards/clubs_${value}.svg`);
     });
 
+    // Monstres (normaux)
     this.load.image("bluffChips", "assets/monsters/sprites/bluffChips.png");
     this.load.image("arnak", "assets/monsters/sprites/arnak.png");
     this.load.image("lowRollers", "assets/monsters/sprites/lowRollers.png");
+    this.load.image("devilRoulette", "assets/monsters/sprites/devilRoulette.png");
+    this.load.image("maccaroni", "assets/monsters/sprites/maccaroni.png");
+
+    // Monstres (boss) — charge tous les sprites du pool boss
+    BOSS_DEFINITIONS.forEach(def => {
+      // convention: le fichier porte le même nom que def.texture
+      this.load.image(def.texture, `assets/monsters/sprites/${def.texture}.png`);
+    });
   }
 
   create() {
+    // Transition
+    this.cameras.main.fadeOut(200, 0, 0, 0);
     this.cameras.main.fadeIn(200, 0, 0, 0);
     document.fonts.ready.then(() => {
       this.input.removeAllListeners();
@@ -152,8 +182,9 @@ export class MainScene extends Phaser.Scene {
         }
       });
 
-      // Décor + UI statique
-      this.add.image(785, 0, "background").setOrigin(0.5, 0).setDisplaySize(this.scale.width / 1.25, this.scale.height / 1.42).setDepth(-10);
+      // Décor + UI statique (fond différent si boss)
+      const bgKey = this.encounterType === 'boss' ? "boss_background" : "background";
+      this.add.image(785, 0, bgKey).setOrigin(0.5, 0).setDisplaySize(this.scale.width / 1.25, this.scale.height / 1.42).setDepth(-10);
       this.add.tileSprite(0, 0, this.scale.width, this.scale.height, "tapis").setDisplaySize(this.scale.width * 2, this.scale.height * 2).setDepth(-12);
       this.add.image(0, 0, "ui_bg").setOrigin(0.5).setScale(1.25, 1.5);
       this.add.rectangle(800, 505, this.scale.width / 2 + 380, 12, 0xF7803C);
@@ -163,8 +194,12 @@ export class MainScene extends Phaser.Scene {
       this.playButton    = new BtnEndTurn(this, this.scale.width - 190, BTN_Y, "Jouer");
       this.discardButton = new BtnEndTurn(this, this.scale.width -  80, BTN_Y, "Défausser");
 
-      // Monster
-      const randomConfig = Phaser.Utils.Array.GetRandom(MONSTER_DEFINITIONS);
+      // Monstre — pool selon encounterType
+      const randomConfig =
+        this.encounterType === 'boss'
+          ? Phaser.Utils.Array.GetRandom(BOSS_DEFINITIONS)
+          : Phaser.Utils.Array.GetRandom(MONSTER_DEFINITIONS);
+
       (this as any).currentMonsterConfig = randomConfig;
       this.monster = new Monster(
         this,
@@ -173,9 +208,9 @@ export class MainScene extends Phaser.Scene {
         randomConfig.texture,
         randomConfig.maxHP,
         randomConfig.actions,
-      ).setScale(1.75);
+      ).setScale(this.encounterType === 'boss' ? 1.9 : 1.75); // boss un peu plus grand
 
-      // Intent UI -> créer AVANT de s'abonner + init
+      // UI intentions du monstre
       this.createIntentUI();
       
       const sortByValueText = this.add.text(this.scale.width - 140, this.scale.height - 195, 'Valeur', {
@@ -204,14 +239,14 @@ export class MainScene extends Phaser.Scene {
 
       sortResetText.on('pointerup', () => {
         this.sortMode = 'none';
-        this.reorganizeHand(); // pas besoin de re-trier
+        this.reorganizeHand();
       });
 
-      // Raccourcis clavier (V, S, N)
+      // Raccourcis clavier (V, C, N)
       this.input.keyboard?.on('keydown-V', () => {
         this.sortMode = 'value'; this.sortHand(); this.reorganizeHand();
       });
-      this.input.keyboard?.on('keydown-S', () => {
+      this.input.keyboard?.on('keydown-C', () => {
         this.sortMode = 'suit'; this.sortHand(); this.reorganizeHand();
       });
       this.input.keyboard?.on('keydown-N', () => {
@@ -221,7 +256,7 @@ export class MainScene extends Phaser.Scene {
       // Un seul abonnement
       this.monster.on('intent:changed', (next: { type: MonsterActionType; value: number }) => this.updateIntentUI(next));
 
-      // Init après que tout soit prêt
+      // Init intention
       this.monster.initIntent();
 
       // Mort du monstre
@@ -337,7 +372,7 @@ export class MainScene extends Phaser.Scene {
               !this.discardedCards.includes(`${c.suit}_${c.value}`)
           );
 
-          if (remaining.length < needed) {
+        if (remaining.length < needed) {
             const recycled = this.discardedCards.map((id) => {
               const [suit, value] = id.split("_");
               return { suit, value };
@@ -459,7 +494,7 @@ export class MainScene extends Phaser.Scene {
         if (this.playButton) this.playButton.setPosition(width - 190, height - 280);
         if (this.discardButton) this.discardButton.setPosition(width - 80, height - 280);
         if (this.monster) this.monster.setPosition(width - 150, 285);
-        this.sortHand();               // (optionnel mais utile)
+        this.sortHand();
         this.reorganizeHand();
         this.positionIntentNearMonster();
       });
@@ -471,7 +506,7 @@ export class MainScene extends Phaser.Scene {
         this.usedCards = [];
         this.discardedCards = [];
 
-        // 🔥 Nettoyage UI d’intention
+        // Clear de l'UI de l'intention
         this.intentContainer?.destroy();
         this.intentIcon = undefined;
         this.intentValueText = undefined;
@@ -483,6 +518,7 @@ export class MainScene extends Phaser.Scene {
     });
   }
 
+  // Appliquer les HP et le gold de la sauvegarde si elle existe
   private async applyHpFromSaveIfAny() {
     if (!this.saveSvc) return;
     try {
@@ -522,6 +558,7 @@ export class MainScene extends Phaser.Scene {
     } catch { /* ignore */ }
   }
 
+  // Jouer une carte
   private tryPlayCard(card: Card) {
     if (this.playZone.containsCard(card)) return;
     if (this.playZone.canAcceptCard()) {
@@ -535,11 +572,13 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
+  // Fin du tour
   private endPlayerTurn() {
     this.currentTurn = "monster";
     this.time.delayedCall(1000, () => this.monsterPlay());
   }
 
+  // Reorganiser la main
   private reorganizeHand() {
     const spacing = 120;
     const startX = this.scale.width / 3 - spacing / 2;
@@ -551,6 +590,7 @@ export class MainScene extends Phaser.Scene {
     });
   }
 
+  // Trouver l'index de la carte appropriée
   private findInsertIndex(card: Card): number {
     for (let i = 0; i < this.handCards.length; i++) {
       if (card.x < this.handCards[i].x) return i;
@@ -558,6 +598,7 @@ export class MainScene extends Phaser.Scene {
     return this.handCards.length;
   }
 
+  // Jouer le tour du monstre
   private monsterPlay() {
     this.playButton.setEnabled(false);
     this.discardButton.setEnabled(false);
@@ -598,10 +639,12 @@ export class MainScene extends Phaser.Scene {
     runNext();
   }
 
+  // Commencer le tour du joueur
   private startPlayerTurn() {
     this.currentTurn = "player";
   }
 
+  // Positionner l'intention au-dessus du monstre
   private positionIntentNearMonster() {
     if (!this.monster || !this.intentContainer) return;
     const p = (this.monster as any).getHpBarAnchor?.();
@@ -612,8 +655,9 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
+  // Créer l'UI de l'intention
   private createIntentUI() {
-    if (this.intentContainer) return; // déjà créée
+    if (this.intentContainer) return;
 
     this.intentIcon = this.add.text(0, 0, '?', {
       fontFamily: 'romet',
@@ -631,8 +675,8 @@ export class MainScene extends Phaser.Scene {
     this.positionIntentNearMonster();
   }
 
+  // Mettre à jour l'UI de l'intention
   private updateIntentUI(next: { type: MonsterActionType; value: number }) {
-    // Lazy create si pas encore prête
     if (!this.intentIcon || !this.intentValueText || !this.intentContainer) {
       this.createIntentUI();
     }
@@ -644,7 +688,8 @@ export class MainScene extends Phaser.Scene {
       StealPercent: '💰',
       heal: '➕',
       buff: '✨',
-      debuff: '☠️'
+      debuff: '☠️',
+      doubleAtk: '🌟',
     };
 
     if (this.intentIcon instanceof Phaser.GameObjects.Text) {
@@ -656,6 +701,7 @@ export class MainScene extends Phaser.Scene {
     this.positionIntentNearMonster();
   }
 
+  // Fin de combat
   private async onCombatWon() {
     const hpNow = this.player.getHP();
     this.game.registry.set('playerHp', hpNow);
@@ -682,7 +728,8 @@ export class MainScene extends Phaser.Scene {
         await this.saveSvc.combatEnd(this.saveId, {
           result: "won",
           playerHp: this.player.getHP(),
-          goldDelta
+          goldDelta,
+          // encouterType: this.encounterType,
         });
       } catch (e) {
         console.warn("[MainScene] combatEnd a échoué (on retourne quand même sur la map) :", e);

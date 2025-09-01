@@ -14,22 +14,59 @@ const createPlayer = async (player) => {
 
 // Service permettant de mettre à jour un joueur par son id
 const pickAllowed = (obj, allowed) =>
-  Object.fromEntries(Object.entries(obj || {}).filter(([k]) => allowed.includes(k)));
+  Object.fromEntries(
+    Object.entries(obj || {}).filter(([k]) => allowed.includes(k))
+  );
 
+// ajoute les champs de préférence autorisés
 const updatePlayer = async (id, data) => {
-  const allowed = ['username','email','gamesPlayed','savegame','lastLogin'];
+  const allowed = [
+    'username','email','gamesPlayed','savegame','lastLogin',
+    'preferences.showTutorial',
+  ];
   const update = pickAllowed(data, allowed);
+
   if (!id) throw Object.assign(new Error('Missing user id'), { status: 400 });
   if (Object.keys(update).length === 0)
     throw Object.assign(new Error('No updatable fields in body'), { status: 400 });
 
-  const result = await PlayerSchema.updateOne({ _id: id }, { $set: update }, { runValidators: true, context: 'query' });
-
+  const result = await PlayerSchema.updateOne(
+    { _id: id },
+    { $set: update },
+    { runValidators: true, context: 'query' }
+  );
   if (result.matchedCount === 0)
     throw Object.assign(new Error('User not found'), { status: 404 });
 
-  const fresh = await PlayerSchema.findById(id).select('username email gamesPlayed role savegame lastLogin createdAt updatedAt');
+  const fresh = await PlayerSchema
+    .findById(id)
+    .select('username email gamesPlayed role savegame lastLogin preferences createdAt updatedAt');
+
   return { modified: result.modifiedCount > 0, player: fresh };
+};
+
+// helper pour le tuto
+const setTutorialState = async (id, action, tutorialVersion = 1) => {
+  if (!id) throw Object.assign(new Error('Missing user id'), { status: 400 });
+
+  let update = {};
+  switch (action) {
+    case 'enable':
+      update = { 'preferences.showTutorial': true };
+      break;
+    case 'disable':
+      update = { 'preferences.showTutorial': false };
+      break;
+    default:
+      throw Object.assign(new Error('Invalid action'), { status: 400 });
+  }
+
+  const fresh = await PlayerSchema.findByIdAndUpdate(
+    id, { $set: update }, { new: true }
+  ).select('preferences');
+
+  if (!fresh) throw Object.assign(new Error('User not found'), { status: 404 });
+  return fresh.preferences;
 };
 
 // Service permettant de récupérer un joueur par son id
@@ -85,6 +122,7 @@ module.exports = {
     getMe,
     login,
     deletePlayer,
-    deletePlayerById
+    deletePlayerById,
+    setTutorialState
 }
 

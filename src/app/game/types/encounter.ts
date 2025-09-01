@@ -1,0 +1,1 @@
+export type EncounterType = 'normal' | 'boss' | 'elite';

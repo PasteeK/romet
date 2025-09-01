@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 
+const preferencesSchema = new mongoose.Schema({
+    showTutorial: { type: Boolean, default: true },
+})
+
+
 const playerSchema = new mongoose.Schema({
     username: {
         type: String,
@@ -28,6 +33,7 @@ const playerSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Savegame',
     },
+    preferences: { type: preferencesSchema, default: () => ({}) },
     role: {
         type: String,
         enum: [
@@ -51,6 +57,7 @@ playerSchema.pre('save', async function (next) {
     next(err);
   }
 });
+
 
 playerSchema.set('toJSON', {
     transform: (_, ret) => {

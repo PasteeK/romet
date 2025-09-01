@@ -26,7 +26,7 @@ export class SmokingScene extends Phaser.Scene {
   }
 
   create() {
-    // simple UI
+    // UI
     this.add.image(this.scale.width/2, this.scale.height/2, 'smokingBG').setOrigin(0.5);
     this.add.text(this.scale.width/2, this.scale.height/2 - 200, 'Zone Fumeur', {
       color: '#ffffff', fontSize: '48px', fontFamily: 'romet'
@@ -66,6 +66,7 @@ export class SmokingScene extends Phaser.Scene {
 
   }
 
+  // Mise à jour des PV
   private async applyHealAndReturn() {
     if (!this.saveSvc || !this.saveId) {
       this.exitToMap();
@@ -73,7 +74,6 @@ export class SmokingScene extends Phaser.Scene {
     }
 
     try {
-      // 1) On récupère la save pour calculer le heal
       const save: any = await this.saveSvc.getCurrent();
       const max  = save?.maxHp ?? save?.player?.maxHp ?? 100;
       const cur  = save?.playerHp ?? save?.currentHp ?? save?.player?.hp ?? save?.startingHp ?? max;
@@ -82,19 +82,15 @@ export class SmokingScene extends Phaser.Scene {
       const healed  = Math.ceil(missing * 0.15);
       const newHp   = Math.min(max, cur + healed);
 
-      // 2) MAJ instantanée côté map (UX)
       const map = this.scene.get('MapScene');
       map?.events.emit('hp:update', newHp);
 
-      // 3) Persistance serveur (si la route existe)
       try {
         await this.saveSvc.saveStats(this.saveId, { playerHp: newHp });
       } catch (err) {
         console.warn('[SmokingScene] PATCH /savegames/:id a échoué → heal non persistant après refresh.', err);
-        // Ici, tu peux afficher une bannière / toast si tu veux prévenir le joueur.
       }
 
-      // 4) (facultatif) Demande un refresh au retour sur la map
       (map as any)?.refreshFromServer?.();
 
     } catch (e) {
@@ -105,9 +101,10 @@ export class SmokingScene extends Phaser.Scene {
   }
 
 
+  // Retour au menu
   private exitToMap() {
-    this.scene.stop();                   // ferme SmokingScene
-    this.scene.wake('MapScene');         // réveille la Map
-    this.scene.bringToTop('MapScene');   // remet la Map au-dessus
+    this.scene.stop();
+    this.scene.wake('MapScene');
+    this.scene.bringToTop('MapScene');
   }
 }

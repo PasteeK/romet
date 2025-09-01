@@ -33,14 +33,17 @@ export class PlayZone {
             .setName('playZone');
     }
 
+    // Renvoi les cartes qui sont dans la zone
     isInside(x: number, y: number): boolean {
         return Phaser.Geom.Rectangle.Contains(this.zone.getBounds(), x, y);
     }
 
+    // Test si la zone peut accueillir une carte
     canAcceptCard(): boolean {
         return this.cards.length < this.maxCards;
     }
 
+    // Ajoute une carte
     addCard(card: Card): void {
         if (!this.canAcceptCard()) return;
 
@@ -61,6 +64,7 @@ export class PlayZone {
         if (this.onChangeCallback) this.onChangeCallback();
     }
 
+    // Supprime une carte
     removeCard(card: Card): void {
         const index = this.cards.indexOf(card);
         if (index === -1) return;
@@ -76,6 +80,7 @@ export class PlayZone {
         if (this.onCardRemovedCallback) this.onCardRemovedCallback(card);
     }
 
+    // Met à jour la position des cartes
     private repositionCards(): void {
         const startX = this.zone.x - ((this.maxCards - 1) * this.cardSpacing) / 2;
         this.cards.forEach((card, i) => {
@@ -85,14 +90,17 @@ export class PlayZone {
         });
     }
 
+    // Test si la zone contient une carte
     containsCard(card: Card): boolean {
         return this.cards.includes(card);
     }
 
+    // Renvoi le nombre de cartes
     getCardCount(): number {
         return this.cards.length;
     }
 
+    // Evaluer la main
     evaluateHand(): string {
         if (this.cards.length < 1) return '';
 
@@ -214,6 +222,7 @@ export class PlayZone {
         return `${handType} - Score : ${score}`;
     }
 
+    // Vide la zone
     clear(): void {
         this.cards.forEach(card => card.destroy());
         this.cards = [];
@@ -223,18 +232,22 @@ export class PlayZone {
         }
     }
 
+    // Met a jour la zone
     public setOnChangeCallback(cb: () => void) {
         this.onChangeCallback = cb;
     }
 
+    // Récupérer les cartes
     public getCards(): Card[] {
         return [...this.cards];
     }
 
+    // Récupérer le dernier score
     public getScore(): number {
         return this.lastScore;
     }
 
+    // Positionner la zone
     public setPosition(x: number, y: number): void {
         this.zone.setPosition(x, y);
         this.repositionCards();

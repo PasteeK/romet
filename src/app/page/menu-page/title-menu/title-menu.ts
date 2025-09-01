@@ -5,7 +5,7 @@ import { Profil } from "../../../features/profil/profil";
 import { AuthService } from '../../authentification-page/services/auth-service';
 import { SavegameService } from '../../../services/savegame.service';
 import { Router } from '@angular/router';
-
+import { PlayerService } from '../../../services/player.service';
 
 @Component({
   selector: 'app-title-menu',
@@ -22,7 +22,7 @@ export class TitleMenu implements OnInit {
   constructor(
   private authService: AuthService,
   private saveSvc: SavegameService,
-  private router: Router
+  private router: Router,
 ) {}
 
   async ngOnInit(): Promise<void> {

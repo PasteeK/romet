@@ -16,7 +16,8 @@ const CombatSchema = new mongoose.Schema({
   ended: { type: Boolean, default: false },
   finished: { type: Boolean, default: false },
   finishedAt: { type: Date, default: null },
-  result: { type: String, default: '' }
+  result: { type: String, default: '' },
+  encounterType: { type: String, enum: ['normal', 'elite', 'boss'], default: 'normal' },
 }, { _id: false });
 
 const SavegameSchema = new mongoose.Schema({

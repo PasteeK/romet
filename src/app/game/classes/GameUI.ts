@@ -35,4 +35,8 @@ export class GameUI {
     setFloor(value: number) {
         this.floorBox.setValue(`${value}`);
     }
+
+    getBounds() {
+        return this.floorBox.getBounds();
+    }
 }

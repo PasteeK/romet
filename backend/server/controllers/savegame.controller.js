@@ -1,43 +1,58 @@
 const Savegame = require('../schemas/Savegame');
+const Player   = require('../schemas/Player');
 
 // GET /savegames/current
-exports.getCurrent = async (_req, res) => {
+async function getCurrent(_req, res) {
   const save = await Savegame.findOne({}).sort({ updatedAt: -1 }).lean();
   if (!save) return res.status(204).send();
   res.json(save);
-};
+}
 
 // POST /savegames/start
-exports.start = async (req, res) => {
-  const { seed, difficulty, mapNodes, startNodeId, startingHp, maxHp } = req.body;
+async function start(req, res) {
+  try {
+    const { seed, difficulty, mapNodes, startNodeId, startingHp, maxHp } = req.body;
 
-  const baseHp = startingHp ?? 100;
-  const save = await Savegame.create({
-    seed,
-    difficulty: difficulty || 'normal',
-    mapNodes,
-    startNodeId: startNodeId || 'start',
-    currentNodeId: startNodeId || 'start',
-    startingHp: baseHp,
-    maxHp: maxHp ?? 100,
-    playerHp: baseHp,
-    currentHp: baseHp,
-    combat: null,
-    clientTick: 0
-  });
+    const baseHp = startingHp ?? 100;
+    const save = await Savegame.create({
+      seed,
+      difficulty: difficulty || 'normal',
+      mapNodes,
+      startNodeId: startNodeId || 'start',
+      currentNodeId: startNodeId || 'start',
+      startingHp: baseHp,
+      maxHp: maxHp ?? 100,
+      playerHp: baseHp,
+      currentHp: baseHp,
+      combat: null,
+      clientTick: 0
+    });
 
-  res.status(201).json(save);
-};
+    // Incrémente gamesPlayed si un joueur est attaché (JWT / session)
+    const playerId = req.user?.id || req.user?._id || req.headers['x-player-id'];
+    if (playerId) {
+      await Player.findByIdAndUpdate(
+        playerId,
+        { $inc: { gamesPlayed: 1 }, $set: { savegame: save._id } },
+        { new: true }
+      ).lean();
+    }
+
+    res.status(201).json(save);
+  } catch (e) {
+    console.error('start error:', e);
+    res.status(500).json({ error: e?.message || 'Internal Server Error' });
+  }
+}
 
 // PATCH /savegames/:id/move
-exports.move = async (req, res) => {
+async function move(req, res) {
   const { id } = req.params;
   const { targetNodeId, clientTick } = req.body;
 
   const save = await Savegame.findById(id);
   if (!save) return res.status(404).json({ error: 'save not found' });
 
-  // Ne pas bouger si combat actif
   if (save.combat && save.combat.status === 'active' && !save.combat.finished && !save.combat.ended) {
     return res.status(400).json({ error: 'combat already active' });
   }
@@ -47,14 +62,11 @@ exports.move = async (req, res) => {
     return res.status(400).json({ error: 'target not reachable' });
   }
 
-  // current -> cleared
   const curIdx = save.mapNodes.findIndex(n => n.id === save.currentNodeId);
   if (curIdx >= 0) save.mapNodes[curIdx].state = 'cleared';
 
-  // target -> current
   save.currentNodeId = targetNodeId;
 
-  // Débloquer voisins du nouveau current
   const next = save.mapNodes.find(n => n.id === targetNodeId);
   if (next) {
     next.state = 'cleared';
@@ -70,12 +82,17 @@ exports.move = async (req, res) => {
 
   await save.save();
   res.json(save);
-};
+}
 
 // POST /savegames/:id/combat/start
-exports.combatStart = async (req, res) => {
+async function combatStart(req, res) {
   const { id } = req.params;
-  const { encounterId, rngSeed, monsters } = req.body;
+  const {
+    encounterId,
+    rngSeed,
+    monsters = [],
+    encounterType = 'normal'   // ← IMPORTANT: on lit bien depuis le body
+  } = req.body;
 
   const save = await Savegame.findById(id);
   if (!save) return res.status(404).json({ error: 'save not found' });
@@ -87,20 +104,21 @@ exports.combatStart = async (req, res) => {
   save.combat = {
     id: encounterId,
     rngSeed,
-    monsters: monsters || [],
+    monsters,
     status: 'active',
     ended: false,
     finished: false,
     finishedAt: null,
-    result: ''
+    result: '',
+    encounterType
   };
 
   await save.save();
   res.json(save);
-};
+}
 
 // POST /savegames/:id/combat/end
-exports.combatEnd = async (req, res) => {
+async function combatEnd(req, res) {
   const { id } = req.params;
   const { result, playerHp, goldDelta = 0 } = req.body;
 
@@ -108,8 +126,8 @@ exports.combatEnd = async (req, res) => {
   if (!save) return res.status(404).json({ error: 'save not found' });
 
   if (typeof playerHp === 'number') {
-    save.playerHp = playerHp;   // ← source de vérité
-    save.currentHp = playerHp;  // ← compat si le front le lit encore
+    save.playerHp = playerHp;
+    save.currentHp = playerHp;
   }
 
   if (!save.combat) save.combat = {};
@@ -123,9 +141,9 @@ exports.combatEnd = async (req, res) => {
 
   await save.save();
   res.json(save);
-};
+}
 
-exports.patch = async (req, res) => {
+async function patch(req, res) {
   const { id } = req.params;
   const { playerHp, gold, maxHp } = req.body || {};
 
@@ -139,3 +157,5 @@ exports.patch = async (req, res) => {
   await save.save();
   res.json(save);
 }
+
+module.exports = { getCurrent, start, move, combatStart, combatEnd, patch };

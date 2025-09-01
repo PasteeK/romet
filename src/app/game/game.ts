@@ -4,6 +4,7 @@ import { MainScene } from './scenes/main.scene';
 import { MapScene } from './scenes/map.scene';
 import { SavegameService } from '../services/savegame.service';
 import { SmokingScene } from './scenes/smoking.scene';
+import { TutorialScene } from './scenes/tutorial.scene';
 
 @Component({
   selector: 'app-game',
@@ -32,8 +33,11 @@ export class Game implements AfterViewInit, OnDestroy {
         height: GAME_HEIGHT,
         parent: this.gameContainer.nativeElement
       },
+      dom: {
+        createContainer: true
+      },
       fps: { target: 60, forceSetTimeOut: true },
-      scene: [] // ⬅️ aucune scène auto-démarrée
+      scene: []
     };
 
     this.phaserGame = new Phaser.Game(config);
@@ -42,6 +46,7 @@ export class Game implements AfterViewInit, OnDestroy {
     this.phaserGame.scene.add('MapScene', MapScene, false);
     this.phaserGame.scene.add('MainScene', MainScene, false);
     this.phaserGame.scene.add('SmokingScene', SmokingScene, false);
+    this.phaserGame.scene.add('TutorialScene', TutorialScene, false);
 
     // Registry: service pour les scènes
     this.phaserGame.registry.set('saveSvc', this.saveSvc);

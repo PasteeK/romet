@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { first, firstValueFrom } from 'rxjs';
+import { EncounterType } from '../game/types/encounter';
 
 export type EventType = 'start' | 'fight' | 'elite' | 'shop' | 'smoking' | 'cheater' | 'boss';
 
@@ -63,6 +64,7 @@ export interface SavegameDTO {
     result?: 'won' | 'lost' | 'escape' | string;
     status?: string; // 'active' | 'finished' ...
     state?: string;  // legacy
+    encounterType: EncounterType
   };
 
   clientTick?: number;
@@ -103,6 +105,7 @@ export class SavegameService {
   combatStart(runId: string, body: {
     encounterId: string;
     rngSeed: number;
+    encounterType: EncounterType;
     monsters: MonsterStateDTO[];
     draw?: CardInstanceDTO[];
     hand?: CardInstanceDTO[];

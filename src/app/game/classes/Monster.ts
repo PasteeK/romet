@@ -7,7 +7,8 @@ export type MonsterActionType =
   'buff' |
   'debuff' |
   'waiting' |
-  'StealPercent';
+  'StealPercent'|
+  'doubleAtk';
 
 export interface MonsterAction {
   type: MonsterActionType;
@@ -51,6 +52,7 @@ export class Monster extends Phaser.GameObjects.Container {
     scene.add.existing(this);
   }
 
+  // Met à jour la barre de vie du monstre
   private updateHPBar() {
     this.hpBar.clear();
     const width = 80;
@@ -60,6 +62,7 @@ export class Monster extends Phaser.GameObjects.Container {
     this.hpBar.fillRect(-width / 2, -60, width * hpRatio, height);
   }
 
+  // Récupérer le prochain action
   public peekNextAction(): { type: MonsterActionType; value: number } {
     if (!this.actions || this.actions.length === 0) {
       return { type: 'waiting', value: 0 };
@@ -69,24 +72,29 @@ export class Monster extends Phaser.GameObjects.Container {
     return { type: a.type, value: a.value };
   }
 
+  // Mettre à jour l'intention
   private emitIntentChanged() {
     const next = this.peekNextAction();
     this.emit('intent:changed', next);
   }
 
+  // Initialiser l'intention
   public initIntent() {
     this.emitIntentChanged();
   }
 
+  // Mettre à jour l'affichage du bouclier
   private updateShieldDisplay() {
     this.shieldText.setText(this.shield > 0 ? `🛡️ ${this.shield}` : '');
   }
 
+  // Ajouter du bouclier
   public addShield(amount: number) {
     this.shield += amount;
     this.updateShieldDisplay();
   }
 
+  // Faire des dégats au monstre
   public takeDamage(amount: number) {
     let damage = amount;
 
@@ -125,6 +133,7 @@ export class Monster extends Phaser.GameObjects.Container {
     }
   }
 
+  // Récupérer le prochain action
   public playNextAction(): MonsterAction {
     const action: MonsterAction = this.actions.length
       ? this.actions[Math.min(this.actionIndex, this.actions.length - 1)]
@@ -138,10 +147,12 @@ export class Monster extends Phaser.GameObjects.Container {
     return action;
   }
 
+  // Récupérer la vie actuelle
   public getHP(): number {
     return this.currentHP;
   }
 
+  // Récupérer l'ancrage de la barre de vie
   public getHpBarAnchor(): Phaser.Math.Vector2 {
     const local = new Phaser.Math.Vector2(-40, -55);
     const world = this.getWorldTransformMatrix().transformPoint(local.x, local.y);
