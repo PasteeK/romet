@@ -23,8 +23,8 @@ export const MONSTER_DEFINITIONS: MonsterConfig[] = [
             { type: 'defend', value: 20, description: 'Protection++' },
         ],
         goldReward: {
-            min: 10,
-            max: 20
+            min: 1,
+            max: 4
         }
     },
     {
@@ -41,8 +41,8 @@ export const MONSTER_DEFINITIONS: MonsterConfig[] = [
             { type: 'StealPercent', value: 25, description: 'Vole un pourcentage' },
         ],
         goldReward: {
-            min: 20,
-            max: 30
+            min: 3,
+            max: 6
         },
         actionsPerTurn: 2
     },
@@ -55,8 +55,8 @@ export const MONSTER_DEFINITIONS: MonsterConfig[] = [
             { type: 'defend', value: 15, description: 'Protection' },
         ],
         goldReward: {
-            min: 10,
-            max: 20
+            min: 2,
+            max: 2
         },
         actionsPerTurn: 2
     },
@@ -78,8 +78,8 @@ export const MONSTER_DEFINITIONS: MonsterConfig[] = [
             { type: 'attack', value: 160, description: 'Protection' },
         ],
         goldReward: {
-            min: 10,
-            max: 20
+            min: 1,
+            max: 5
         },
     },
     {
@@ -100,7 +100,7 @@ export const MONSTER_DEFINITIONS: MonsterConfig[] = [
         ],
         goldReward: {
             min: 3,
-            max: 49
+            max: 5
         },
         actionsPerTurn: 5
     }

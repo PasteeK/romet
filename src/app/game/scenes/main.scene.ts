@@ -7,6 +7,7 @@ import { GameUI } from "../classes/GameUI";
 import { Player } from "../classes/Player";
 import { MONSTER_DEFINITIONS } from "../classes/monsters/simpleMonster";
 import { BOSS_DEFINITIONS } from "../classes/monsters/bossMonster";
+import { ELITE_DEFINITIONS } from "../classes/monsters/eliteMonster";
 
 import { Injector } from "@angular/core";
 import { SavegameService } from "../../services/savegame.service";
@@ -153,6 +154,11 @@ export class MainScene extends Phaser.Scene {
     this.load.image("devilRoulette", "assets/monsters/sprites/devilRoulette.png");
     this.load.image("maccaroni", "assets/monsters/sprites/maccaroni.png");
 
+    // Monstres (elite)
+    this.load.image("yunderA", "assets/monsters/sprites/heartQueenElite.png");
+    this.load.image("yunderA2", "assets/monsters/sprites/heartQueenElite2.png");
+    this.load.image("yunderA3", "assets/monsters/sprites/heartQueenElite3.png");
+
     // Monstres (boss) — charge tous les sprites du pool boss
     BOSS_DEFINITIONS.forEach(def => {
       // convention: le fichier porte le même nom que def.texture
@@ -195,10 +201,15 @@ export class MainScene extends Phaser.Scene {
       this.discardButton = new BtnEndTurn(this, this.scale.width -  80, BTN_Y, "Défausser");
 
       // Monstre — pool selon encounterType
-      const randomConfig =
+      // Monstre — pool selon encounterType
+      const pool =
         this.encounterType === 'boss'
-          ? Phaser.Utils.Array.GetRandom(BOSS_DEFINITIONS)
-          : Phaser.Utils.Array.GetRandom(MONSTER_DEFINITIONS);
+          ? BOSS_DEFINITIONS
+          : this.encounterType === 'elite'
+            ? ELITE_DEFINITIONS
+            : MONSTER_DEFINITIONS;
+
+      const randomConfig = Phaser.Utils.Array.GetRandom(pool);
 
       (this as any).currentMonsterConfig = randomConfig;
       this.monster = new Monster(
@@ -208,7 +219,12 @@ export class MainScene extends Phaser.Scene {
         randomConfig.texture,
         randomConfig.maxHP,
         randomConfig.actions,
-      ).setScale(this.encounterType === 'boss' ? 1.9 : 1.75); // boss un peu plus grand
+      ).setScale(
+        this.encounterType === 'boss'  ? 1.9
+        : this.encounterType === 'elite' ? 1.85
+        : 1.75
+      );
+
 
       // UI intentions du monstre
       this.createIntentUI();
@@ -311,6 +327,8 @@ export class MainScene extends Phaser.Scene {
 
         if (cardCount > 0) this.playZone.evaluateHand();
         else this.gameUI.setScore("", 0);
+
+        this.updateButtonsForCharm();
       });
 
       // main de départ
@@ -412,6 +430,8 @@ export class MainScene extends Phaser.Scene {
       });
 
       this.discardButton.onClick(() => {
+        if (this.hasCharmedInZone()) return;
+
         if (this.discardsUsed >= MainScene.MAX_DISCARD) return;
         const cardsInPlay = this.playZone.getCards();
         if (cardsInPlay.length === 0) return;
@@ -480,10 +500,20 @@ export class MainScene extends Phaser.Scene {
 
       // réorg à la sortie de zone
       this.playZone.setOnCardRemoved((card: Card) => {
+        // Si la carte est charmée, on la REPOUSSE dans la zone (interdit de la retirer)
+        if (this.isCharmed(card)) {
+          // Re-snap dans la zone au prochain tick pour laisser la physique/drag finir
+          this.time.delayedCall(0, () => this.playZone.addCard(card));
+          this.updateButtonsForCharm();
+          return;
+        }
+
+        // Sinon comportement normal : retour en main
         const insertIndex = this.findInsertIndex(card);
         this.handCards.splice(insertIndex, 0, card);
         this.sortHand();
         this.reorganizeHand();
+        this.updateButtonsForCharm();
       });
 
       // Resize
@@ -622,6 +652,12 @@ export class MainScene extends Phaser.Scene {
         case "StealPercent":
           this.player.stealGoldPercent(action.value);
           break;
+        case "charm":
+          this.applyCharm(Math.max(1, action.value || 1));
+          break;
+        case "transform":
+          this.monster.transformToForm(action.value);
+          break;
       }
     };
 
@@ -637,6 +673,68 @@ export class MainScene extends Phaser.Scene {
     };
 
     runNext();
+  }
+
+  private isCharmed(card: Card): boolean {
+    return !!(card as any).getData?.('charmed');
+  }
+
+  /** Y a-t-il au moins une carte charmée dans la playzone ? */
+  private hasCharmedInZone(): boolean {
+    return this.playZone.getCards().some(c => (c as any).getData?.('charmed'));
+  }
+
+  /** Met à jour les boutons en tenant compte du charm. */
+  private updateButtonsForCharm() {
+    const cardCount = this.playZone.getCardCount();
+    const hasDiscardsLeft = this.discardsUsed < MainScene.MAX_DISCARD;
+    const forbidDiscard = this.hasCharmedInZone(); // on bloque la défausse si charm
+    this.playButton.setEnabled(cardCount >= 1 && cardCount <= 5);
+    this.discardButton.setEnabled(cardCount >= 1 && cardCount <= 5 && hasDiscardsLeft && !forbidDiscard);
+  }
+
+  /** Applique Charm : prend N cartes aléatoires de la main (hors zone) et les force dans la zone. */
+  private applyCharm(n: number = 1) {
+    // Candidats = cartes en main et PAS déjà dans la zone
+    const candidates = this.handCards.filter(c => !this.playZone.containsCard(c));
+    if (candidates.length === 0) {
+      // S'il n'y a rien en main, on peut marquer une carte déjà en zone (edge case)
+      const already = this.playZone.getCards();
+      if (already.length > 0) {
+        const c = Phaser.Utils.Array.GetRandom(already) as Card;
+        (c as any).setData?.('charmed', true);
+        this.updateButtonsForCharm();
+      }
+      return;
+    }
+
+    Phaser.Utils.Array.Shuffle(candidates);
+    const take = Math.min(n, candidates.length);
+    for (let i = 0; i < take; i++) {
+      const card = candidates[i];
+      // On la force dans la playzone
+      this.playZone.addCard(card);
+      // On la retire de la main
+      const idx = this.handCards.indexOf(card);
+      if (idx !== -1) this.handCards.splice(idx, 1);
+      // On marque charmée
+      (card as any).setData?.('charmed', true);
+    }
+
+    // Réordonner visuellement la main
+    this.sortHand();
+    this.reorganizeHand();
+
+    // Mettre à jour l'état des boutons (défausse interdite si charm)
+    this.updateButtonsForCharm();
+
+    // (Optionnel) petit feedback visuel
+    this.tweens.add({
+      targets: this.playZone.getCards().filter(c => (c as any).getData?.('charmed')),
+      scale: { from: 1.05, to: 1 },
+      duration: 200,
+      ease: 'Sine.easeOut'
+    });
   }
 
   // Commencer le tour du joueur
@@ -690,6 +788,8 @@ export class MainScene extends Phaser.Scene {
       buff: '✨',
       debuff: '☠️',
       doubleAtk: '🌟',
+      charm: '❤️',
+      transform: '❓',
     };
 
     if (this.intentIcon instanceof Phaser.GameObjects.Text) {

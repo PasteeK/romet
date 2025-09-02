@@ -7,6 +7,7 @@ import { SavegameService, SavegameDTO, MapNodeDTO } from "../../services/savegam
 
 import { EncounterType } from "../types/encounter";
 import { BOSS_DEFINITIONS } from "../classes/monsters/bossMonster";
+import { ELITE_DEFINITIONS } from "../classes/monsters/eliteMonster";
 
 export class MapScene extends Phaser.Scene {
   private gameUI!: GameUI;
@@ -408,7 +409,7 @@ export class MapScene extends Phaser.Scene {
           clientTick: this.save.clientTick,
         });
 
-        // 2) si le back dit qu’un combat est actif, on le reprend
+        // 2) si un combat est actif → reprise
         if (this.isCombatActive(this.save)) {
           this.game.registry.set('saveId', this.save._id);
           const ctype = ((this.save as any)?.combat?.encounterType as EncounterType) || 'normal';
@@ -418,7 +419,7 @@ export class MapScene extends Phaser.Scene {
           return;
         }
 
-        // 3) on regarde le type du nœud
+        // 3) type de nœud
         const freshNode = this.save.mapNodes.find((n: MapNodeDTO) => n.id === targetId)!;
 
         if (freshNode.type === 'smoking') {
@@ -429,16 +430,48 @@ export class MapScene extends Phaser.Scene {
         }
 
         if (['fight', 'elite', 'boss'].includes(freshNode.type)) {
-          const encounterType: EncounterType = (freshNode.type === 'boss') ? 'boss' : 'normal';
+          const encounterType: EncounterType =
+            freshNode.type === 'boss'  ? 'boss'  :
+            freshNode.type === 'elite' ? 'elite' : 'normal';
 
           try {
+            // choix du pool de monstres selon le type
+            let monsters: Array<{ monsterId: string; hp: number; maxHp: number; block: number; buffs: any[] }>;
+
+            if (encounterType === 'boss') {
+              const boss = Phaser.Utils.Array.GetRandom(BOSS_DEFINITIONS);
+              monsters = [{
+                monsterId: boss.name,
+                hp: boss.maxHP,
+                maxHp: boss.maxHP,
+                block: 0,
+                buffs: []
+              }];
+            } else if (encounterType === 'elite') {
+              const elite = Phaser.Utils.Array.GetRandom(ELITE_DEFINITIONS);
+              monsters = [{
+                monsterId: elite.name,
+                hp: elite.maxHP,
+                maxHp: elite.maxHP,
+                block: 0,
+                buffs: []
+              }];
+            } else {
+              monsters = [{
+                monsterId: 'arnak',
+                hp: 250,
+                maxHp: 250,
+                block: 0,
+                buffs: []
+              }];
+            }
+
+            // lancement combat
             this.save = await this.saveSvc.combatStart(this.save._id, {
               encounterId: `enc_${Date.now()}`,
               rngSeed: Math.floor(Math.random() * 1e9),
               encounterType,
-              monsters: encounterType === 'boss'
-                ? [{ monsterId: 'spadeBoss', hp: 600, maxHp: 600, block: 0, buffs: [] }]
-                : [{ monsterId: 'arnak', hp: 250, maxHp: 250, block: 0, buffs: [] }]
+              monsters,
             });
 
             this.game.registry.set('saveId', this.save._id);
@@ -465,7 +498,7 @@ export class MapScene extends Phaser.Scene {
           }
         }
 
-        // 4) pas un nœud de combat → là, on met à jour la map
+        // 4) sinon → mise à jour map
         this.applySaveToNodes(this.save);
 
       } catch (e: any) {
@@ -475,6 +508,7 @@ export class MapScene extends Phaser.Scene {
       }
     });
   }
+
 
   // Gestion de la persistence
   private loadPersistence() {

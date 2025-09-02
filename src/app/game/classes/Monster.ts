@@ -8,8 +8,9 @@ export type MonsterActionType =
   'debuff' |
   'waiting' |
   'StealPercent'|
-  'doubleAtk';
-
+  'doubleAtk' |
+  'charm' |
+  'transform';
 export interface MonsterAction {
   type: MonsterActionType;
   value: number;
@@ -104,9 +105,10 @@ export class Monster extends Phaser.GameObjects.Container {
       damage -= absorbed;
       this.updateShieldDisplay();
 
+      // effet visuel si le shield absorbe
       this.scene.tweens.add({
         targets: this.sprite,
-        tint: { from: 0xffffff, to: 0x00ffff },
+        tint: { from: 0xffffff, to: 0x00ffff }, // bleu
         duration: 100,
         yoyo: true,
         repeat: 1
@@ -116,6 +118,16 @@ export class Monster extends Phaser.GameObjects.Container {
     if (damage > 0) {
       this.currentHP = Math.max(0, this.currentHP - damage);
 
+      // effet visuel : monstre clignote rouge
+      this.scene.tweens.add({
+        targets: this.sprite,
+        tint: { from: 0xffffff, to: 0xff0000 }, // rouge
+        duration: 120,
+        yoyo: true,
+        repeat: 2
+      });
+
+      // petit "knockback"
       this.scene.tweens.add({
         targets: this,
         x: this.x - 10,
@@ -158,4 +170,26 @@ export class Monster extends Phaser.GameObjects.Container {
     const world = this.getWorldTransformMatrix().transformPoint(local.x, local.y);
     return new Phaser.Math.Vector2(world.x, world.y);
   }
+
+  public transformToForm(formIndex: number) {
+    // Récupère la clé actuelle (ex: "yunderA2")
+    const baseKey = this.sprite.texture.key.replace(/\d+$/, ""); 
+    // → supprime les chiffres à la fin s’il y en a
+
+    const newKey = `${baseKey}${formIndex}`; // ex: "yunderA2"
+    if (this.scene.textures.exists(newKey)) {
+      this.sprite.setTexture(newKey);
+
+      // petit effet visuel pour la transition
+      this.scene.tweens.add({
+        targets: this.sprite,
+        alpha: { from: 0, to: 1 },
+        duration: 400,
+        ease: "Power2",
+      });
+    } else {
+      console.warn(`[Monster] texture ${newKey} non trouvée`);
+    }
+  }
+
 }

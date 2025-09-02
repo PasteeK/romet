@@ -241,8 +241,6 @@ export class TutorialScene extends Phaser.Scene {
     });
   }
 
-  // ——— Spotlight helpers ———
-  /** Crée/actualise un trou rectangulaire dans le voile sombre. */
   private makeHole(rect: Phaser.Geom.Rectangle, radius: number = 12) {
     this.clearHole();
 
@@ -250,7 +248,7 @@ export class TutorialScene extends Phaser.Scene {
     this.holeG = this.add.graphics();
     this.holeG.fillStyle(0xffffff, 1);
     this.holeG.fillRoundedRect(rect.x, rect.y, rect.width, rect.height, radius);
-    this.holeG.setVisible(false); // sert uniquement au mask
+    this.holeG.setVisible(false);
 
     // Applique le mask inversé sur le voile
     this.holeMask = new Phaser.Display.Masks.GeometryMask(this, this.holeG);

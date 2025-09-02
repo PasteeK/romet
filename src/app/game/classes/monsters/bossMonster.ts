@@ -13,7 +13,7 @@ export const BOSS_DEFINITIONS: BossConfig[] = [
   {
     name: "spadeBoss",
     texture: "spadeBoss",
-    maxHP: 600,
+    maxHP: 750,
     actionsPerTurn: 2,
     actions: [
       { type: "attack", value: 20, description: "Coup du parrain" },
