@@ -103,5 +103,18 @@ export const MONSTER_DEFINITIONS: MonsterConfig[] = [
             max: 5
         },
         actionsPerTurn: 5
+    },
+    {
+        name: 'piloteRaccoon',
+        texture: 'piloteRaccoon',
+        maxHP: 425,
+        actions: [
+            { type: 'attack', value: 5, description: 'TA !' },
+        ],
+        goldReward: {
+            min: 2,
+            max: 5
+        },
+        actionsPerTurn: 1
     }
 ]

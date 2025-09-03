@@ -1,6 +1,5 @@
 import Phaser from 'phaser';
 import { Card } from './Card';
-import { count } from 'rxjs';
 import { GameUI } from './GameUI';
 
 export class PlayZone {
@@ -10,6 +9,8 @@ export class PlayZone {
     private maxCards = 5;
     private cardSpacing = 120;
     private lastScore: number = 0;
+
+    private currentMonsterName: string | null = null;
 
     private gameUI?: GameUI
     public setGameUI(ui: GameUI) {
@@ -61,6 +62,9 @@ export class PlayZone {
         card.once('pointerdown', () => {
             this.removeCard(card);
         });
+
+        this.evaluateHand();
+
         if (this.onChangeCallback) this.onChangeCallback();
     }
 
@@ -100,127 +104,95 @@ export class PlayZone {
         return this.cards.length;
     }
 
+    public setMonsterName(name: string | null) {
+        this.currentMonsterName = name;
+    }
+
     // Evaluer la main
     evaluateHand(): string {
         if (this.cards.length < 1) return '';
 
-        const valueMap: { [key: string]: number } = {
-            '2': 2, '3': 3, '4': 4, '5': 5, '6': 6,
-            '7': 7, '8': 8, '9': 9, '10': 10,
-            'J': 11, 'Q': 12, 'K': 13, 'A': 14
+        const valueMap: Record<string, number> = {
+            '2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,'10':10,'J':11,'Q':12,'K':13,'A':14
         };
 
-        const values = this.cards.map(card => valueMap[card.value]);
-        const suits = this.cards.map(card => card.suit);
+        // Qui est le monstre ?
+        const monsterKey =
+            (this.currentMonsterName ??
+            (this.scene.game.registry.get('currentMonsterKey') as string | undefined) ??
+            ''
+            ).toLowerCase();
 
-        const counts: { [val: number]: number } = {};
-        values.forEach(v => counts[v] = (counts[v] || 0) + 1);
+        const isYunderA = monsterKey.startsWith('yundera');
+
+        // 1) RANGS BRUTS pour identifier la main (ne JAMAIS doubler ici)
+        const baseValues = this.cards.map(c => valueMap[c.value]);
+        const suits      = this.cards.map(c => c.suit);
+
+        // 2) VALEURS DE SCORE (cœurs doublés seulement contre YunderA)
+        const scoreValues = this.cards.map((c, i) => {
+            const v = baseValues[i];
+            return (isYunderA && c.suit === 'heart') ? v * 2 : v;
+        });
+
+        // Comptages pour les combinaisons → basé sur baseValues
+        const counts: Record<number, number> = {};
+        for (const v of baseValues) counts[v] = (counts[v] || 0) + 1;
         const countValues = Object.values(counts).sort((a, b) => b - a);
         const uniqueCounts = countValues.join('');
 
-        const sortedValues = [...new Set(values)].sort((a, b) => a - b);
-
-        const isFlush = this.cards.length === 5 && suits.every(suit => suit === suits[0]);
+        // Flush / Straight → basé sur baseValues
+        const isFlush = this.cards.length === 5 && suits.every(s => s === suits[0]);
 
         let isStraight = false;
         if (this.cards.length === 5) {
-            // Suite classique
-            for (let i = 0; i <= sortedValues.length - 5; i++) {
-                const slice = sortedValues.slice(i, i + 5);
-                if (slice.every((v, j, arr) => j === 0 || v === arr[j - 1] + 1)) {
-                    isStraight = true;
-                    break;
-                }
+            const sortedUnique = [...new Set(baseValues)].sort((a, b) => a - b);
+            for (let i = 0; i <= sortedUnique.length - 5; i++) {
+            const slice = sortedUnique.slice(i, i + 5);
+            if (slice.every((v, j, arr) => j === 0 || v === arr[j - 1] + 1)) {
+                isStraight = true; break;
             }
-
-            // Petite Suite (A-2-3-4-5)
+            }
+            // A-2-3-4-5 (wheel)
             const wheel = [14, 2, 3, 4, 5];
-            if (wheel.every(v => values.includes(v))) {
-                isStraight = true;
-            }
+            if (wheel.every(v => baseValues.includes(v))) isStraight = true;
         }
 
+        // Détermination du type de main (inchangé, mais basé sur baseValues/uniqueCounts/isFlush/isStraight)
         let handType = 'Carte Haute';
         let multiplier = 1;
 
-        // Main de 5 cartes
         if (this.cards.length === 5) {
-            if (isFlush && isStraight && sortedValues.includes(10)) {
-                handType = 'Quinte Flush Royale';
-                multiplier = 20;
-            } else if (isFlush && isStraight) {
-                handType = 'Quinte Flush';
-                multiplier = 15;
-            } else if (uniqueCounts === '41') {
-                handType = 'Carré';
-                multiplier = 12;
-            } else if (uniqueCounts === '32') {
-                handType = 'Full';
-                multiplier = 8;
-            } else if (isFlush) {
-                handType = 'Couleur';
-                multiplier = 6;
-            } else if (isStraight) {
-                handType = 'Suite';
-                multiplier = 5;
-            } else if (uniqueCounts === '311') {
-                handType = 'Brelan';
-                multiplier = 4;
-            } else if (uniqueCounts === '221') {
-                handType = 'Double Paire';
-                multiplier = 2.5;
-            } else if (uniqueCounts === '2111') {
-                handType = 'Paire';
-                multiplier = 1.5;
-            }
+            const hasTenToAce = [10,11,12,13,14].every(v => baseValues.includes(v));
+            if (isFlush && isStraight && hasTenToAce) { handType='Quinte Flush Royale'; multiplier=20; }
+            else if (isFlush && isStraight)           { handType='Quinte Flush';        multiplier=15; }
+            else if (uniqueCounts === '41')           { handType='Carré';               multiplier=12; }
+            else if (uniqueCounts === '32')           { handType='Full';                multiplier=8; }
+            else if (isFlush)                         { handType='Couleur';             multiplier=6; }
+            else if (isStraight)                      { handType='Suite';               multiplier=5; }
+            else if (uniqueCounts === '311')          { handType='Brelan';              multiplier=4; }
+            else if (uniqueCounts === '221')          { handType='Double Paire';        multiplier=2.5; }
+            else if (uniqueCounts === '2111')         { handType='Paire';               multiplier=1.5; }
+        } else if (this.cards.length === 4) {
+            if (uniqueCounts === '4')   { handType='Carré';        multiplier=12; }
+            else if (uniqueCounts === '31') { handType='Brelan';   multiplier=4; }
+            else if (uniqueCounts === '22') { handType='Double Paire'; multiplier=2.5; }
+            else if (uniqueCounts === '211'){ handType='Paire';    multiplier=1.5; }
+        } else if (this.cards.length === 3) {
+            if (uniqueCounts === '3')   { handType='Brelan'; multiplier=4; }
+            else if (uniqueCounts === '21'){ handType='Paire'; multiplier=1.5; }
+        } else if (this.cards.length === 2) {
+            if (uniqueCounts === '2')   { handType='Paire'; multiplier=1.5; }
         }
 
-        // Main de 4 cartes
-        else if (this.cards.length === 4) {
-            if (uniqueCounts === '4') {
-                handType = 'Carré';
-                multiplier = 12;
-            } else if (uniqueCounts === '31') {
-                handType = 'Brelan';
-                multiplier = 4;
-            } else if (uniqueCounts === '22') {
-                handType = 'Double Paire';
-                multiplier = 2.5;
-            } else if (uniqueCounts === '211') {
-                handType = 'Paire';
-                multiplier = 1.5;
-            }
-        }
-
-        // Main de 3 cartes
-        else if (this.cards.length === 3) {
-            if (uniqueCounts === '3') {
-                handType = 'Brelan';
-                multiplier = 4;
-            } else if (uniqueCounts === '21') {
-                handType = 'Paire';
-                multiplier = 1.5;
-            }
-        }
-
-        // Main de 2 cartes
-        else if (this.cards.length === 2) {
-            if (uniqueCounts === '2') {
-                handType = 'Paire';
-                multiplier = 1.5;
-            }
-        }
-
-        const total = values.reduce((sum, v) => sum + v, 0);
+        // 3) Score final = somme des valeurs pondérées * multiplier
+        const total = scoreValues.reduce((s, v) => s + v, 0);
         const score = Math.round(total * multiplier);
         this.lastScore = score;
 
-        if (this.gameUI) {
-            this.gameUI.setScore(handType, score);
-        }
-
+        this.gameUI?.setScore(handType, score);
         return `${handType} - Score : ${score}`;
-    }
+        }
 
     // Vide la zone
     clear(): void {

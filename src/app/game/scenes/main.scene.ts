@@ -26,6 +26,8 @@ export class MainScene extends Phaser.Scene {
   private static readonly MAX_DISCARD = 2;
   private discardsUsed = 0;
 
+  private currentMonsterConfig: any;
+
   private sortMode: 'none' | 'value' | 'suit' | 'suitThenValue' | 'valueThenSuit' = 'none';
 
   private readonly valueOrder = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
@@ -153,6 +155,7 @@ export class MainScene extends Phaser.Scene {
     this.load.image("lowRollers", "assets/monsters/sprites/lowRollers.png");
     this.load.image("devilRoulette", "assets/monsters/sprites/devilRoulette.png");
     this.load.image("maccaroni", "assets/monsters/sprites/maccaroni.png");
+    this.load.image("piloteRaccoon", "assets/monsters/sprites/piloteRaccoon.png");
 
     // Monstres (elite)
     this.load.image("yunderA", "assets/monsters/sprites/heartQueenElite.png");
@@ -211,7 +214,10 @@ export class MainScene extends Phaser.Scene {
 
       const randomConfig = Phaser.Utils.Array.GetRandom(pool);
 
-      (this as any).currentMonsterConfig = randomConfig;
+      this.currentMonsterConfig = randomConfig;
+
+      this.game.registry.set('currentMonsterKey', randomConfig.texture);
+
       this.monster = new Monster(
         this,
         this.scale.width - 150,
@@ -224,7 +230,6 @@ export class MainScene extends Phaser.Scene {
         : this.encounterType === 'elite' ? 1.85
         : 1.75
       );
-
 
       // UI intentions du monstre
       this.createIntentUI();
@@ -313,6 +318,8 @@ export class MainScene extends Phaser.Scene {
       // Zone de jeu
       this.playZone = new PlayZone(this, this.scale.width / 2 + 25, this.scale.height - 335, 700, 180);
       this.playZone.setGameUI(this.gameUI);
+
+      this.playZone.setMonsterName(this.currentMonsterConfig?.texture ?? null);
 
       this.playButton.setEnabled(false);
       this.discardButton.setEnabled(false);
