@@ -16,7 +16,7 @@ router.post('/login', playerController.login);
 
 router.get('/me', authenticateToken, playerController.getMe);
 
-router.post('/me/tutorial', authenticateToken, playerController.setTutorial);
+router.put('/me/tutorial', authenticateToken, playerController.setTutorial);
 
 router.patch('/:id', authenticateToken, playerController.updatePlayer);
 

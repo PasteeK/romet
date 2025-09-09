@@ -12,6 +12,8 @@ import { ELITE_DEFINITIONS } from "../classes/monsters/eliteMonster";
 import { Injector } from "@angular/core";
 import { SavegameService } from "../../services/savegame.service";
 import { EncounterType } from "../types/encounter";
+import { extractSoundKeys } from "../audio/sound-utils";
+import { clearDefeatedPools, filterPoolByDefeated, markMonsterDefeated } from "../state/defeated-pool";
 
 export class MainScene extends Phaser.Scene {
   private playZone!: PlayZone;
@@ -155,7 +157,9 @@ export class MainScene extends Phaser.Scene {
     this.load.image("lowRollers", "assets/monsters/sprites/lowRollers.png");
     this.load.image("devilRoulette", "assets/monsters/sprites/devilRoulette.png");
     this.load.image("maccaroni", "assets/monsters/sprites/maccaroni.png");
+    this.load.image("maccaroni2", "assets/monsters/sprites/maccaroni2.png");
     this.load.image("piloteRaccoon", "assets/monsters/sprites/piloteRaccoon.png");
+    this.load.image("laitka", "assets/monsters/sprites/laitka.png");
 
     // Monstres (elite)
     this.load.image("yunderA", "assets/monsters/sprites/heartQueenElite.png");
@@ -167,6 +171,22 @@ export class MainScene extends Phaser.Scene {
       // convention: le fichier porte le même nom que def.texture
       this.load.image(def.texture, `assets/monsters/sprites/${def.texture}.png`);
     });
+
+    const allDefs = [
+      ...MONSTER_DEFINITIONS,
+      ...BOSS_DEFINITIONS,
+      ...ELITE_DEFINITIONS
+    ];
+
+    const allKeys = Array.from(new Set(
+      allDefs.flatMap(d => extractSoundKeys(d.sounds))
+    ))
+
+    allKeys.forEach(key => {
+      this.load.audio(key, [
+        `assets/audio/sfx/${key}.ogg`
+      ])
+    })
   }
 
   create() {
@@ -203,20 +223,40 @@ export class MainScene extends Phaser.Scene {
       this.playButton    = new BtnEndTurn(this, this.scale.width - 190, BTN_Y, "Jouer");
       this.discardButton = new BtnEndTurn(this, this.scale.width -  80, BTN_Y, "Défausser");
 
-      // Monstre — pool selon encounterType
-      // Monstre — pool selon encounterType
-      const pool =
+      // Pool brut selon le type de rencontre
+      const poolRaw =
         this.encounterType === 'boss'
           ? BOSS_DEFINITIONS
           : this.encounterType === 'elite'
             ? ELITE_DEFINITIONS
             : MONSTER_DEFINITIONS;
 
-      const randomConfig = Phaser.Utils.Array.GetRandom(pool);
+      // 1) filtrage blacklist de l'étage
+      let candidatePool = filterPoolByDefeated(this, this.encounterType, poolRaw);
+
+      // 2) éviter le même monstre que la dernière rencontre si possible
+      const last = this.game.registry.get('lastMonsterName') as string | undefined;
+      if (last && candidatePool.length > 1) {
+        const alt = candidatePool.filter(m => m.name !== last);
+        if (alt.length > 0) candidatePool = alt;
+      }
+
+      // 3) si vraiment plus rien (edge case : tout filtré), on retombe sur poolRaw
+      if (candidatePool.length === 0) {
+        const alt = last ? poolRaw.filter(m => m.name !== last) : poolRaw;
+        candidatePool = alt.length > 0 ? alt : poolRaw;
+      }
+
+      // Tirage final
+      const randomConfig = Phaser.Utils.Array.GetRandom(candidatePool);
 
       this.currentMonsterConfig = randomConfig;
-
       this.game.registry.set('currentMonsterKey', randomConfig.texture);
+
+      // mémoriser pour éviter la répétition immédiate la prochaine fois
+      if (randomConfig?.name) {
+        this.game.registry.set('lastMonsterName', randomConfig.name);
+      }
 
       this.monster = new Monster(
         this,
@@ -225,6 +265,7 @@ export class MainScene extends Phaser.Scene {
         randomConfig.texture,
         randomConfig.maxHP,
         randomConfig.actions,
+        randomConfig.sounds
       ).setScale(
         this.encounterType === 'boss'  ? 1.9
         : this.encounterType === 'elite' ? 1.85
@@ -643,43 +684,56 @@ export class MainScene extends Phaser.Scene {
     const cfg: any = (this as any).currentMonsterConfig || {};
     const perTurn = Math.max(1, cfg.actionsPerTurn ?? 1);
 
-    const doOne = () => {
+    const ATOMIC_DELAY = 150; // pacing entre étapes d’un combo (rapide)
+    const ACTION_DELAY = 250; // pacing entre actions “de haut niveau”
+
+    const doAtomic = () => {
       const action = this.monster.playNextAction();
       if (!action) return;
 
       switch (action.type) {
-        case "attack":
-          this.player.takeDamage(action.value);
-          break;
-        case "defend":
-          this.monster.addShield(action.value);
-          break;
-        case "waiting":
-          break;
-        case "StealPercent":
-          this.player.stealGoldPercent(action.value);
-          break;
-        case "charm":
-          this.applyCharm(Math.max(1, action.value || 1));
-          break;
-        case "transform":
-          this.monster.transformToForm(action.value);
-          break;
+        case "attack":       this.player.takeDamage(action.value); break;
+        case "defend":       this.monster.addShield(action.value); break;
+        case "waiting":      break;
+        case "StealPercent": this.player.stealGoldPercent(action.value); break;
+        case "charm":        this.applyCharm(Math.max(1, action.value || 1)); break;
+        case "transform":    this.monster.transformToForm(action.value); break;
+        case "milk":         this.monster.milk(action.value); break;
+        // 'combo' ne devrait jamais tomber ici car playNextAction renvoie une atomique
       }
     };
 
-    let i = 0;
-    const runNext = () => {
-      if (i >= perTurn) {
+    let highLevelCount = 0;
+
+    const drainComboThenNext = () => {
+      // Tant qu’il reste des sous-étapes, on continue dans CE tour
+      if (this.monster.getPendingCount() > 0) {
+        doAtomic();
+        this.time.delayedCall(ATOMIC_DELAY, drainComboThenNext);
+        return;
+      }
+
+      // Fin du combo (ou ce n’était pas un combo) → on passe à l’action “de haut niveau” suivante
+      highLevelCount++;
+      if (highLevelCount >= perTurn) {
         this.time.delayedCall(300, () => this.startPlayerTurn());
         return;
       }
-      doOne();
-      i++;
-      this.time.delayedCall(250, runNext);
+
+      // Action de haut niveau suivante
+      this.time.delayedCall(ACTION_DELAY, runOneHighLevel);
     };
 
-    runNext();
+    const runOneHighLevel = () => {
+      // Démarre une action “de haut niveau” (qui peut être atomique OU un combo)
+      // playNextAction renvoie toujours une atomique (ou la 1ère étape du combo)
+      doAtomic();
+      // Puis on draine le reste si c'était un combo
+      this.time.delayedCall(ATOMIC_DELAY, drainComboThenNext);
+    };
+
+    // kickstart
+    runOneHighLevel();
   }
 
   private isCharmed(card: Card): boolean {
@@ -797,6 +851,8 @@ export class MainScene extends Phaser.Scene {
       doubleAtk: '🌟',
       charm: '❤️',
       transform: '❓',
+      combo: '➰',
+      milk: '🥛'
     };
 
     if (this.intentIcon instanceof Phaser.GameObjects.Text) {
@@ -821,6 +877,15 @@ export class MainScene extends Phaser.Scene {
     const map = this.scene.get('MapScene') as Phaser.Scene | undefined;
     map?.events.emit('hp:update', hpNow);
     map?.events.emit('gold:update', goldNow);
+
+    const cfg: any = (this as any).currentMonsterConfig;
+
+    if (this.encounterType === 'boss') {
+      clearDefeatedPools(this);
+      this.game.registry.set('lastMonsterName', undefined); // reset pour l'étage suivant
+    } else {
+      if (cfg?.name) markMonsterDefeated(this, this.encounterType, cfg.name);
+    }
 
     if (this.isEnding) return;
     this.isEnding = true;

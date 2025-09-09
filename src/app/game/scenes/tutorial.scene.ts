@@ -9,6 +9,16 @@ type Step = {
   html: string;
   onEnter?: () => void;
   panelAt?: { x: number, y: number };
+
+  advance?: 'dialog' | 'external';
+  awaitRect?: {x: number, y: number, w: number, h: number};
+  awaitTargetKey?: string;
+  passThrough?: boolean;
+
+  awaitSceneStart?: string | string[];
+  awaitSceneWake?: string | string[];
+  awaitSceneStop?: string | string[];
+  awaitSceneSleep?: string | string[];
 };
 
 export class TutorialScene extends Phaser.Scene {
@@ -17,6 +27,10 @@ export class TutorialScene extends Phaser.Scene {
   private steps: Step[] = [];
 
   private dialogReady = false;
+  private dialogLocked = false;
+  private awaitClickHandler?: (p: Phaser.Input.Pointer) => void;
+
+  private sceneOffs: Array<() => void> = [];
 
   // Réfs UI
   private panel!: Phaser.GameObjects.Rectangle;
@@ -25,6 +39,7 @@ export class TutorialScene extends Phaser.Scene {
   private textBg!: Phaser.GameObjects.Rectangle;
   private dom!: Phaser.GameObjects.DOMElement;
   private nextIcon!: Phaser.GameObjects.Sprite;
+  private skipBtn!: Phaser.GameObjects.Text;
 
   // Surbrillance
   private veil!: Phaser.GameObjects.Graphics;
@@ -32,6 +47,8 @@ export class TutorialScene extends Phaser.Scene {
   private holeMask?: Phaser.Display.Masks.GeometryMask;
   private holeBorder?: Phaser.GameObjects.Graphics;
   private borderTween?: Phaser.Tweens.Tween;
+  private holeBorders: Phaser.GameObjects.Graphics[] = [];
+  private borderTweensArr: Phaser.Tweens.Tween[] = [];
 
   // Data passé par la scène appelante (toujours défini)
   private tutData: TutData = {};
@@ -80,16 +97,26 @@ export class TutorialScene extends Phaser.Scene {
     this.dom.addListener('click');
     this.dom.on('click', (e: any) => {
       const el = e.target as HTMLElement;
-      if (el.matches('[data-action="skip"]')) {
+
+      // ✅ Skip via lien dans le HTML (toujours autorisé)
+      const clickable = el.closest('[data-action]') as HTMLElement | null;
+      if (clickable?.getAttribute('data-action') === 'skip') {
         e.preventDefault();
         this.finish('skipped');
-      } else {
-        this.nextStep();
+        return;
       }
+
+      // Si le step est en mode advance:'external', on n’avance pas par la box
+      if (this.dialogLocked) return;
+
+      this.nextStep();
     });
 
     // (En plus) clique sur le fond textuel
-    this.textBg.on('pointerup', () => this.nextStep());
+    this.textBg.on('pointerup', () => {
+      if (this.dialogLocked) return;  // ⬅️ crucial
+      this.nextStep();
+    });
 
     // Anim “next” (chevrons)
     if (!this.anims.exists('nextBlink')) {
@@ -102,6 +129,13 @@ export class TutorialScene extends Phaser.Scene {
     }
     this.nextIcon = this.add.sprite(this.panel.x + 395, this.panel.y + 65, 'next')
       .setScale(1.5).setDepth(3).play('nextBlink');
+
+    this.skipBtn = this.add.text(40, 650, 'Passer le tutoriel',
+      { fontFamily: 'romet', fontSize: '24px', color: '#F7A03C' }
+    )
+    .setDepth(5)
+    .setInteractive({ useHandCursor: true })
+    .on('pointerup', () => this.finish('skipped'));
 
     this.dialogReady = true;
 
@@ -116,8 +150,28 @@ export class TutorialScene extends Phaser.Scene {
       },
       {
         html:
+          `L'interface de jeu se compose de 2 zones.<br>
+          <br>
+          La zone de <span style="color:#F7A03C;">gauche</span> est la zone "informations".<br>
+          Cet interface est visible durant toute la partie.<br>`,
+        onEnter: () => {
+          this.makeHoleAt(0, 0, 285, 720);
+        }
+      },
+      {
+        html:
+          `La zone de <span style="color:#F7A03C;">droite</span> est la carte de jeu.<br>
+          <br>
+          C'est ici que tu vas pouvoir choisir le chemin que tu comptes emprunter afin d'aller le plus
+          loin possible.<br>`,
+        onEnter: () => {
+          this.makeHoleAt(285, 0, 995, 720);
+        }
+      },
+      {
+        html:
           `Pour commencer,<br> nous allons voir ensemble à quoi correspondent les 
-          informations visibles sur <span style="color:#F7A03C;">l'interface</span> à gauche de l'écran.`,
+          informations visibles sur <span style="color:#F7A03C;">l'interface</span> informations.`,
         onEnter: () => {
           this.makeHoleAt(12.5, 12.5, 245, 385);
         }
@@ -149,7 +203,7 @@ export class TutorialScene extends Phaser.Scene {
       },
       {
         html:
-          `Et pour finir, tu peux voir ici <span style="color:#F7A03C;">l'argent</span> que tu possèdes.<br> Actuellement, tu as 0 <span style="color:#F7A03C;">or</span>.`,
+          `Enfin, tu peux voir ici <span style="color:#F7A03C;">l'argent</span> que tu possèdes.<br> Actuellement, tu as 0 pièce d'<span style="color:#F7A03C;">or</span>.`,
           onEnter: () => {
             this.makeHoleAt(12.5, 312.5, 125, 85);
           }
@@ -165,15 +219,148 @@ export class TutorialScene extends Phaser.Scene {
       },
       {
         html:
-          `oui`,
+          `La carte se compose de chemins. Chaque chemin est parsemé d'<span style="color:#F7A03C;">evenements</span>.
+          L'icone ici indique que cet <span style="color:#F7A03C;">evenement</span> ci est un combat simple.<br>`,
           onEnter: () => {
             this.makeHoleAt(551, 515, 65, 65);
           },
           panelAt: { x: 775, y: 225 },
+      },
+      {
+        html:
+          `Il existe plusieurs types d'<span style="color:#F7A03C;">evenements</span>.<br>
+          Je te laisses le plaisir de découvrir les autres par toi-meme !`,
+          onEnter: () => {
+          },
+          panelAt: { x: 775, y: 225 },
+      },
+      {
+        html:
+          `Pour commencer la partie, il te suffit de cliquer sur une des 3 premières cases <span style="color:#F7A03C;">evenement</span>.<br>`,
+          advance: 'external',
+          passThrough: true,
+          awaitTargetKey: 'evenement',
+          awaitSceneStart: 'MainScene',
+          onEnter: () => {
+            this.makeHoles([
+              new Phaser.Geom.Rectangle(551, 515, 65, 65),
+              new Phaser.Geom.Rectangle(755, 515, 65, 65),
+              new Phaser.Geom.Rectangle(959, 515, 65, 65),
+            ])
+          },
+          panelAt: { x: 775, y: 225 },
+      },
+      {
+        html:
+          `Nous voici dans le coeur du jeu, les combats !<br>
+          <br>
+          Depuis cet interface, tu peux voir en <span style="color:#F7A03C;">surbrillance</span> ta main actuelle.`,
+          advance: 'dialog',
+          onEnter: () => {
+            this.makeHoleAt(300, 545, 975, 150);
+          },
+          panelAt: { x: 775, y: 225 },
+      },
+      {
+        html:
+          `Ici, tu peux trier ta main par <span style="color:#F7A03C;">couleur</span> ou 
+          par <span style="color:#F7A03C;">valeur</span>. <br>
+          <br>
+          Tu peux essayer dès maintenant si tu veux !`,
+          advance: 'dialog',
+          onEnter: () => {
+            this.makeHoleAt(1050, 517.5, 155, 30);
+          },
+          panelAt: { x: 775, y: 225 },
+      },
+      {
+        html:
+          `Là, tu peux voir le <span style="color:#F7A03C;">monstre</span> que tu affrontes actuellement.<br>
+          Le but du jeu est de réaliser des mains de poker afin de lui infliger des dégâts et de le mettre hors d'état de nuir.`,
+          advance: 'dialog',
+          onEnter: () => {
+            this.makeHoleAt(1030, 195, 215, 225);
+          },
+          panelAt: { x: 775, y: 600 },
+      },
+      {
+        html:
+          `Tu peux voir ici sa <span style="color:#F7A03C;">barre de vie</span>.<br>
+          Lorsque celle-ci tombe à 0, le monstre devient "out".<br>
+          Ce qui te laisse passer à la suite.`,
+          advance: 'dialog',
+          onEnter: () => {
+            this.makeHoleAt(1050, 174, 160, 30);
+          },
+          panelAt: { x: 775, y: 600 },
+      },
+      {
+        html:
+          `Pour finir avec le monstre, voici son <span style="color:#F7A03C;">intention</span>.<br>
+          La plupart des monstres annoncent à l'avance se qu'ils s'apprêtent à faire.<br>
+          A toi d'analyser ce que le pictogramme signifie et adapter ta stratégie en fonction !`,
+          advance: 'dialog',
+          onEnter: () => {
+            this.makeHoleAt(980, 170, 75, 35);
+          },
+          panelAt: { x: 775, y: 600 },
+      },
+      {
+        html:
+          `Voici la table. C'est ici que tu peux y placer tes <span style="color:#F7A03C;">cartes</span>.<br>
+          Tu peux poser jusqu'à 5 cartes sur la table. Le but est d'en faire la main de poker la plus
+          élevée possible avec les cartes que tu disposes dans ta main.`,
+          advance: 'dialog',
+          onEnter: () => {
+            this.makeHoleAt(305, 285, 720, 200);
+          },
+          panelAt: { x: 775, y: 600 },
+      },
+      {
+        html:
+          `Le <span style="color:#F7A03C;">score</span> est ensuite calculé en temps réel 
+          et affiché à gauche dans l'interface de <span style="color:#F7A03C;">score</span>.`,
+          advance: 'dialog',
+          onEnter: () => {
+            this.makeHoles([
+              new Phaser.Geom.Rectangle(305, 285, 720, 200),
+              new Phaser.Geom.Rectangle(12.5, 112.5, 245, 85),
+            ])
+          },
+          panelAt: { x: 775, y: 600 },
+      },
+      {
+        html:
+          `Une fois les cartes placées sur la table, tu peux décider de les <span style="color:#F7A03C;">jouer</span> 
+          ou de les <span style="color:#F7A03C;">défausser</span>.<br>`,
+          advance: 'dialog',
+          onEnter: () => {
+            this.makeHoleAt(1030, 412.5, 230, 55);
+          },
+          panelAt: { x: 775, y: 600 },
+      },
+      {
+        html:
+          `Si tu décides de les jouer, cela inflige des <span style="color:#F7A03C;">dégâts</span>
+          au monstre en fonction du score de la table.<br>`,
+          advance: 'dialog',
+          onEnter: () => {
+            this.makeHoleAt(1030, 412.5, 117.5, 55);
+          },
+          panelAt: { x: 775, y: 600 },
+      },
+      {
+        html:
+          `En revanche, si tu décides de les défausser, cela va mettre ces cartes dans 
+          ta <span style="color:#F7A03C;">défausse</span> puis tu repioche autant de cartes que défaussées`,
+          advance: 'dialog',
+          onEnter: () => {
+            this.makeHoleAt(1142.5, 412.5, 117.5, 55);
+          },
+          panelAt: { x: 775, y: 600 },
       }
     ];
 
-    // Applique le premier step
     this.applyStep(this.steps[0]);
 
     this.input.setTopOnly(true); // l’overlay capte les clics
@@ -183,9 +370,16 @@ export class TutorialScene extends Phaser.Scene {
   private nextStep() {
     if (this.done) return;
 
-    // Nettoie un éventuel trou du step courant
     this.clearHole();
     this.input.setTopOnly(true);
+
+    if (this.awaitClickHandler) {
+      this.input.off('pointerup', this.awaitClickHandler);
+      this.awaitClickHandler = undefined;
+    }
+    // NEW: retirer tous les listeners de scène du step courant
+    this.sceneOffs.forEach(off => off());
+    this.sceneOffs = [];
 
     this.stepIndex++;
     if (this.stepIndex >= this.steps.length) {
@@ -196,13 +390,13 @@ export class TutorialScene extends Phaser.Scene {
   }
 
   private applyStep(step: Step) {
-    // 1) Déplacer la box AVANT toute lecture de bounds
+    // 1) Déplacer la box
     if (step.panelAt) {
       const { x, y } = step.panelAt;
-      this.moveDialogTo(x, y); // instantané
+      this.moveDialogTo(x, y);
     }
 
-    // 2) Mettre à jour le DOM en fonction de la NOUVELLE position
+    // 2) MAJ DOM
     const PADDING = 12;
     const a = this.textBg.getBounds();
     const el = this.dom.node as HTMLElement;
@@ -211,7 +405,31 @@ export class TutorialScene extends Phaser.Scene {
     el.innerHTML    = this.makeHTML(step.html);
     this.dom.setPosition(a.x + PADDING, a.y + PADDING);
 
-    // 3) Hooks (spotlight, etc.)
+    // 3) Gating / pass-through
+    this.setDialogLocked(step.advance === 'external');
+    this.input.setTopOnly(!(step.passThrough === true));
+
+    // 3bis) attente clic externe éventuelle
+    const awaitRect = this.resolveAwaitRect(step);
+    if (awaitRect) {
+      this.awaitClickHandler = (pointer: Phaser.Input.Pointer) => {
+        if (Phaser.Geom.Rectangle.Contains(awaitRect, pointer.x, pointer.y)) {
+          this.input.off('pointerup', this.awaitClickHandler!);
+          this.awaitClickHandler = undefined;
+          this.nextStep();
+        }
+      };
+      this.input.on('pointerup', this.awaitClickHandler);
+    }
+
+    // ——— Avance sur changement de scène ———
+    this.bindSceneEventsForKeys(step.awaitSceneStart, Phaser.Scenes.Events.START);
+    this.bindSceneEventsForKeys(step.awaitSceneWake,  Phaser.Scenes.Events.WAKE);
+    this.bindSceneEventsForKeys(step.awaitSceneSleep, Phaser.Scenes.Events.SLEEP);
+    // "STOP" côté API → on utilise l’event réel "SHUTDOWN"
+    this.bindSceneEventsForKeys(step.awaitSceneStop,  Phaser.Scenes.Events.SHUTDOWN);
+
+    // 4) Hook custom
     step.onEnter?.();
   }
 
@@ -231,10 +449,40 @@ export class TutorialScene extends Phaser.Scene {
     </div>`;
   }
 
-  private finish(state: 'skipped'|'completed') {
+  private async finish(state: 'skipped'|'completed') {
+    if (this.awaitClickHandler) {
+      this.input.off('pointerup', this.awaitClickHandler);
+      this.awaitClickHandler = undefined;
+    }
+    this.sceneOffs.forEach(off => off());
+    this.sceneOffs = [];
+
     this.done = true;
-    this.clearHole(); // s'assure que le masque est retiré
-    this.cameras.main.fadeOut(400, 0, 0, 0);
+    this.clearHole();
+
+    // 🔐 Récupère le token si tu utilises le login back
+    const token = localStorage.getItem('jwt') || localStorage.getItem('token');
+
+    // 🔁 Essaie d’enregistrer côté back AVANT de stopper la scène (mais sans bloquer l’UX si ça échoue)
+    try {
+      // ⚠️ adapte l’URL selon le montage de ton router (ex: '/players/me/tutorial' ou '/api/players/me/tutorial')
+      await fetch('/players/me/tutorial', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ action: 'disable', tutorialVersion: 1 }),
+        // (si front ≠ back origin) -> ajoute: credentials: 'include' et configure CORS côté serveur
+      });
+    } catch (e) {
+      console.warn('[Tuto] Sauvegarde préférence a échoué', e);
+      // Fallback local: au moins on évite de relancer tout de suite dans la même session
+      this.game.registry.set('tutorialDone', true);
+      try { localStorage.setItem('romet:tutorialDone', '1'); } catch {}
+    }
+
+    this.cameras.main.fadeOut(300, 0, 0, 0);
     this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
       this.tutData?.onComplete?.(state);
       this.scene.stop();
@@ -271,10 +519,6 @@ export class TutorialScene extends Phaser.Scene {
     });
   }
 
-  private makeHoleAt(x: number, y: number, w: number, h: number) {
-    this.makeHole(new Phaser.Geom.Rectangle(x, y, w, h));
-  }
-
   /** Retire le trou et libère les ressources. */
   private clearHole() {
     (this.veil as any)?.clearMask?.(true);
@@ -283,10 +527,12 @@ export class TutorialScene extends Phaser.Scene {
     this.holeMask = undefined;
     this.holeG = undefined;
 
-    this.borderTween?.stop();
-    this.holeBorder?.destroy();
-    this.holeBorder = undefined;
-    this.borderTween = undefined;
+    // détruire toutes les bordures + tweens
+    this.borderTweensArr.forEach(t => t.stop());
+    this.borderTweensArr = [];
+
+    this.holeBorders.forEach(g => g.destroy());
+    this.holeBorders = [];
   }
 
   private layoutDialogAt(x: number, y: number) {
@@ -299,9 +545,130 @@ export class TutorialScene extends Phaser.Scene {
     this.profilePic.setPosition(this.profileBg.x, this.profileBg.y);
     this.textBg.setPosition(this.panel.x + 100, this.panel.y);
     this.nextIcon.setPosition(this.panel.x + 395, this.panel.y + 65);
+
+    if (this.skipBtn) this.skipBtn.setPosition(this.panel.x + 430, this.panel.y - 95);
   }
 
   private moveDialogTo(x: number, y: number) {
     this.layoutDialogAt(x, y);
+  }
+
+  /** Initialise le mask si besoin (une seule fois) */
+  private ensureHoleMask(radiusDefault: number = 12) {
+    if (this.holeG) return;
+
+    this.holeG = this.add.graphics();
+    this.holeG.fillStyle(0xffffff, 1);
+    this.holeG.setVisible(false);
+
+    this.holeMask = new Phaser.Display.Masks.GeometryMask(this, this.holeG);
+    this.holeMask.setInvertAlpha(true);
+    this.veil.setMask(this.holeMask);
+  }
+
+  /** Ajoute (n'ENLÈVE PAS) un trou au masque courant */
+  private addHole(rect: Phaser.Geom.Rectangle, radius: number = 12) {
+    this.ensureHoleMask(radius);
+
+    // on DESSINE un nouveau rectangle dans le même Graphics (mask cumulatif)
+    this.holeG!.fillRoundedRect(rect.x, rect.y, rect.width, rect.height, radius);
+
+    // --- Bordure néon par trou ---
+    const border = this.add.graphics().setDepth(5);
+    border.lineStyle(4, 0xffffff, 1);
+    border.strokeRoundedRect(rect.x, rect.y, rect.width, rect.height, radius);
+
+    const tw = this.tweens.add({
+      targets: border,
+      alpha: { from: 1, to: 0.3 },
+      duration: 800,
+      yoyo: true,
+      repeat: -1,
+      ease: 'sine.inOut'
+    });
+
+    this.holeBorders.push(border);
+    this.borderTweensArr.push(tw);
+  }
+
+  /** API pratique pour ton code existant */
+  private makeHoleAt(x: number, y: number, w: number, h: number, radius: number = 12) {
+    this.addHole(new Phaser.Geom.Rectangle(x, y, w, h), radius);
+  }
+
+  private makeHoles(rects: Phaser.Geom.Rectangle[], radius: number = 12) {
+    rects.forEach(r => this.addHole(r, radius));
+  }
+
+  private resolveAwaitRect(step: Step): Phaser.Geom.Rectangle | null {
+    if (step.awaitRect) {
+      const {x,y,w,h} = step.awaitRect;
+      return new Phaser.Geom.Rectangle(x,y,w,h);
+    }
+    if (step.awaitTargetKey && this.tutData.getTargetBounds) {
+      const r = this.tutData.getTargetBounds(step.awaitTargetKey);
+      return r ?? null;
+    }
+    return null;
+  }
+
+  private setDialogLocked(locked: boolean) {
+    this.dialogLocked = locked;
+
+    // Optionnel : feedback visuel et blocage des events souris
+    const node = this.dom?.node as HTMLElement | undefined;
+    if (node) {
+      node.style.pointerEvents = locked ? 'auto' : 'auto'; 
+      // on laisse "auto" pour que le lien [data-action="skip"] reste cliquable
+      // si tu veux désactiver totalement les clics (y compris skip) : 'none'
+      node.style.cursor = locked ? 'default' : 'pointer';
+    }
+
+    if (this.textBg) {
+      if (locked) this.textBg.disableInteractive();
+      else this.textBg.setInteractive({ useHandCursor: true });
+    }
+  }
+
+  private matchSceneKey(key: string, wanted?: string | string[]) {
+    if (!wanted) return false;
+    return Array.isArray(wanted) ? wanted.includes(key) : wanted === key;
+  }
+
+  private toArray<T>(v?: T | T[]): T[] {
+    if (!v) return [];
+    return Array.isArray(v) ? v : [v];
+  }
+
+  /** Bind un event Phaser.Scenes.Events.* sur la scène `sceneKey` (via sys.events) */
+  private bindSingleSceneSysEvent(sceneKey: string, eventName: string) {
+    let sc: Phaser.Scene | undefined;
+
+    try {
+      sc = this.scene.get(sceneKey) as Phaser.Scene; // récupère l'instance de scène
+    } catch {
+      sc = undefined;
+    }
+    if (!sc) return; // si la scène n'est pas enregistrée, on ne bind pas
+
+    const sysEv = sc.sys.events as Phaser.Events.EventEmitter;
+    const handler = () => {
+      // cleanup puis next
+      this.sceneOffs.forEach(off => off());
+      this.sceneOffs = [];
+      if (this.awaitClickHandler) {
+        this.input.off('pointerup', this.awaitClickHandler);
+        this.awaitClickHandler = undefined;
+      }
+      this.nextStep();
+    };
+
+    sysEv.on(eventName, handler);
+    this.sceneOffs.push(() => sysEv.off(eventName, handler));
+  }
+
+  /** Bind un event pour 1..n scènes (helper pratique) */
+  private bindSceneEventsForKeys(keys: string | string[] | undefined, eventName: string) {
+    this.toArray(keys).forEach(k => this.bindSingleSceneSysEvent(k, eventName));
   }
 }

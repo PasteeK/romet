@@ -1,4 +1,5 @@
 import { MonsterAction } from "../Monster";
+import { MonsterSounds } from "./types";
 
 export interface BossConfig {
   name: string;
@@ -7,6 +8,7 @@ export interface BossConfig {
   actionsPerTurn?: number;
   actions: MonsterAction[];
   goldReward: { min: number; max: number };
+  sounds?: MonsterSounds
 }
 
 export const BOSS_DEFINITIONS: BossConfig[] = [
