@@ -16,12 +16,13 @@ app.use('/players', require('./routes/player.routes'));
 app.use('/savegames', require('./routes/savegame.routes'));
 
 // MongoDB
+const PORT = process.env.PORT || 3000;
+const MONGO_URI = process.env.MONGO_URI;
+
 if (!MONGO_URI) {
   console.error('MONGO_URI not defined in .env');
   process.exit(1);
 }
-const PORT = process.env.PORT || 3000;
-const MONGO_URI = process.env.MONGO_URI;
 
 
 mongoose.connect(MONGO_URI, {})

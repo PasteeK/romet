@@ -9,7 +9,7 @@ export const MONSTER_DEFINITIONS: MonsterConfig[] = [
     {
         name: 'bluffChips',
         texture: 'bluffChips',
-        maxHP: 350,
+        maxHP: 150,
         actions: [
             { type: 'attack', value: 10, description: 'Attaque' },
             { type: 'defend', value: 10, description: 'Protection' },
@@ -28,16 +28,20 @@ export const MONSTER_DEFINITIONS: MonsterConfig[] = [
     {
         name: 'arnak',
         texture: 'arnak',
-        maxHP: 400,
+        maxHP: 150,
         actionsPerTurn: 2,
         actions: [
             { type: 'attack', value: 5, description: 'Attaque' },
             { type: 'StealPercent', value: 10, description: 'Vole un pourcentage' },
+
             { type: 'attack', value: 5, description: 'Attaque' },
             { type: 'StealPercent', value: 15, description: 'Vole un pourcentage' },
+
             { type: 'waiting', value: 0, description: 'attente' },
             { type: 'attack', value: 50, description: 'Attaque' },
+
             { type: 'StealPercent', value: 25, description: 'Vole un pourcentage' },
+            { type: 'waiting', value: 0, description: 'attente' },
         ],
         goldReward: {
             min: 3,
@@ -49,7 +53,7 @@ export const MONSTER_DEFINITIONS: MonsterConfig[] = [
     {
         name: 'lowRollers',
         texture: 'lowRollers',
-        maxHP: 300,
+        maxHP: 150,
         actionsPerTurn: 2,
         actions: [
             { type: 'attack', value: 15, description: 'Attaque' },
@@ -65,7 +69,7 @@ export const MONSTER_DEFINITIONS: MonsterConfig[] = [
     {
         name: 'devilRoulette',
         texture: 'devilRoulette',
-        maxHP: 350,
+        maxHP: 150,
         actions: [
             { type: 'attack', value: 5, description: 'Attaque' },
             { type: 'doubleAtk', value: 2, description: "Double l'attaque" },

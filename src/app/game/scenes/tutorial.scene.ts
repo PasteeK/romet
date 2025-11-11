@@ -536,8 +536,6 @@ export class TutorialScene extends Phaser.Scene {
     this.profilePic.setPosition(this.profileBg.x, this.profileBg.y);
     this.textBg.setPosition(this.panel.x + 100, this.panel.y);
     this.nextIcon.setPosition(this.panel.x + 395, this.panel.y + 65);
-
-    if (this.skipBtn) this.skipBtn.setPosition(this.panel.x + 430, this.panel.y - 95);
   }
 
   // Déplace la boite de dialogue

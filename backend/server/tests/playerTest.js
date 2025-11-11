@@ -67,8 +67,8 @@ describe('PlayerService', function () {
 
   it('should return all players with getAllPlayers', async function () {
     const players = [
-      { _id: '1', username: 'alice' },
-      { _id: '2', username: 'bob' },
+      { _id: '1', username: 'alexis' },
+      { _id: '2', username: 'pastek' },
     ];
     PlayerModel.find = async () => players;
 

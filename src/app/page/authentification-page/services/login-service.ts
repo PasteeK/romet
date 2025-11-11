@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable, tap } from 'rxjs';
+import { environment } from '../../../../environments/environment.development';
 
 export interface LoginCredentials {
   username: string;
@@ -16,7 +17,7 @@ export interface LoginResponse {
 })
 export class LoginService {
   private http = inject(HttpClient);
-  private apiUrl = 'http://localhost:3000/players';
+  private apiUrl = environment.API_BASE_URL + '/players';
 
   login(username: string, password: string): Observable<LoginResponse> {
     const credentials: LoginCredentials = { username, password };

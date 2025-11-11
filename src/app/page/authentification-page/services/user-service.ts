@@ -1,6 +1,7 @@
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
+import { environment } from '../../../../environments/environment.development';
 
 interface PlayerProfile {
   pseudo: string;
@@ -12,7 +13,7 @@ interface PlayerProfile {
   providedIn: 'root'
 })
 export class UserService {
-  private apiUrl = 'http://localhost:3000/players/me';
+  private apiUrl = environment.API_BASE_URL + '/players/me';
 
   constructor(private http: HttpClient) {}
 
@@ -33,7 +34,7 @@ export class UserService {
     });
 
     return this.http.patch<{ gamesPlayed: number }>(
-      'http://localhost:3000/players/increment-games',
+      environment.API_BASE_URL + '/players/increment-games',
       {},
       { headers }
     );

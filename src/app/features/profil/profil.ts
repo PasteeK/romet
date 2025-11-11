@@ -63,7 +63,7 @@ export class Profil implements OnInit {
         this.logout();
       },
       error: (err) => {
-        console.error('❌ Erreur suppression compte :', err);
+        console.error('Erreur suppression compte :', err);
       }
     });
   }
