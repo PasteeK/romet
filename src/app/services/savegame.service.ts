@@ -54,16 +54,16 @@ export interface SavegameDTO {
 
   startingHp?: number;
   maxHp?: number;
-  playerHp?: number;   // ← on normalise ici
-  currentHp?: number;  // legacy
+  playerHp?: number;
+  currentHp?: number;
 
   combat?: {
     ended?: boolean;
     finished?: boolean;
     finishedAt?: string;
     result?: 'won' | 'lost' | 'escape' | string;
-    status?: string; // 'active' | 'finished' ...
-    state?: string;  // legacy
+    status?: string;
+    state?: string;
     encounterType: EncounterType
   };
 
@@ -95,7 +95,7 @@ export class SavegameService {
 
   move(
     runId: string,
-    body: { targetNodeId: string; clientTick?: number } // ← optionnel
+    body: { targetNodeId: string; clientTick?: number }
   ): Promise<SavegameDTO> {
     return firstValueFrom(
       this.http.patch<SavegameDTO>(`${this.API}/${runId}/move`, body)

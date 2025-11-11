@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 
+// Schéma d'un evenement sur la carte, dans la base de données
 const MapNodeSchema = new mongoose.Schema({
   id: { type: String, required: true },
   x: Number, y: Number,
@@ -8,6 +9,7 @@ const MapNodeSchema = new mongoose.Schema({
   state: { type: String, enum: ['locked', 'available', 'cleared'], default: 'locked' }
 }, { _id: false });
 
+// Schéma de l'evenement combat, dans la base de données
 const CombatSchema = new mongoose.Schema({
   id: String,
   rngSeed: Number,
@@ -20,6 +22,7 @@ const CombatSchema = new mongoose.Schema({
   encounterType: { type: String, enum: ['normal', 'elite', 'boss'], default: 'normal' },
 }, { _id: false });
 
+// Schéma d'une partie, dans la base de données
 const SavegameSchema = new mongoose.Schema({
   seed: Number,
   difficulty: { type: String, default: 'normal' },
@@ -29,8 +32,8 @@ const SavegameSchema = new mongoose.Schema({
 
   startingHp: { type: Number, default: 100 },
   maxHp: { type: Number, default: 100 },
-  playerHp: { type: Number, default: 100 }, // ← canonique
-  currentHp: { type: Number, default: 100 }, // ← compat si tu lis encore ce champ
+  playerHp: { type: Number, default: 100 },
+  currentHp: { type: Number, default: 100 },
 
   gold: { type: Number, default: 0 },
   combat: { type: CombatSchema, default: null },

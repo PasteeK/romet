@@ -40,14 +40,12 @@ export class MapPage implements AfterViewInit {
 
       const sm = game.scene as any;
 
-      // S'assurer que la Map tourne (pour pouvoir récupérer ses bounds)
       if (!sm.isActive?.('MapScene')) {
         sm.start('MapScene');
       }
 
       const mapScene: any = sm.getScene?.('MapScene');
 
-      // Éviter de relancer si déjà actif/dormi
       const tutActive = sm.isActive?.('TutorialScene');
       const tutSleeping = sm.isSleeping?.('TutorialScene');
       if (tutActive || tutSleeping) {
@@ -58,8 +56,6 @@ export class MapPage implements AfterViewInit {
       const data: TutData = {
         onComplete: (state) => {
           console.log('[Tutorial] finished:', state);
-          // Exemple: marquer tuto comme terminé côté profil
-          // this.player.setTutorial(false);
         },
         getTargetBounds: (key) => {
           if (mapScene?.getEventBounds) {
@@ -69,19 +65,16 @@ export class MapPage implements AfterViewInit {
         }
       };
 
-      // ⚠️ Utiliser run(...) (tapé) pour overlay (équivalent pratique à launch)
       console.log('[MapPage] running TutorialScene (overlay)');
       game.scene.run('TutorialScene', data as any);
       game.scene.bringToTop?.('TutorialScene');
     };
 
-    // Si le jeu est déjà injecté dans window
     if (getGame()) {
       ensureMap();
       if (this.player.getTutorial()) startTutorialOverlay();
     }
 
-    // Sinon, attendre l'event custom "phaser-ready"
     const handler = () => {
       ensureMap();
       if (this.player.getTutorial()) startTutorialOverlay();

@@ -1,6 +1,7 @@
 import { MonsterAction } from "../Monster";
 import { MonsterSounds } from "./types";
 
+// Configuration de la template d'un monstre Elite
 export interface EliteConfig {
   name: string;
   texture: string;
@@ -11,11 +12,13 @@ export interface EliteConfig {
   sounds?: MonsterSounds;
 }
 
+// Definitions des Elite
 export const ELITE_DEFINITIONS: EliteConfig[] = [
+  // yunderA : Collaboration avec Alice de numerica
   {
     name: "yunderA",
     texture: "yunderA",
-    maxHP: 700,
+    maxHP: 300,
     actionsPerTurn: 3,
     actions: [
       { type: "charm", value: 1, description: "Charme" },

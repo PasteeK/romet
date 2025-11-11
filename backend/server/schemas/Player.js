@@ -1,11 +1,12 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 
+// Montrer le tutoriel au lancement de la partie
 const preferencesSchema = new mongoose.Schema({
     showTutorial: { type: Boolean, default: true },
 })
 
-
+// Schéma d'un joueur dans la base de données
 const playerSchema = new mongoose.Schema({
     username: {
         type: String,
@@ -48,6 +49,7 @@ const playerSchema = new mongoose.Schema({
     }
 }, { timestamps: true });
 
+// Chiffrement du mot de passe via bcrypt
 playerSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
   try {
@@ -57,7 +59,6 @@ playerSchema.pre('save', async function (next) {
     next(err);
   }
 });
-
 
 playerSchema.set('toJSON', {
     transform: (_, ret) => {

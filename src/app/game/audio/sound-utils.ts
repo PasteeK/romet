@@ -1,10 +1,12 @@
 import Phaser from 'phaser';
 import { SoundRef, SoundSet, MonsterSounds } from '../classes/monsters/types';
 
+// Retourne un son aleatoirement choisi
 export function pickOne<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+// Jouer un son
 export function playSound(scene: Phaser.Scene, set?: SoundSet) {
   if (!set) return;
   const ref: SoundRef = Array.isArray(set) ? pickOne(set) : set;
@@ -18,7 +20,7 @@ export function playSound(scene: Phaser.Scene, set?: SoundSet) {
   }
 }
 
-// Pour le preload dynamique, récupérer TOUTES les clés (y compris dans les tableaux/objets)
+// Récupérer les clés des sons
 export function extractSoundKeys(sounds?: MonsterSounds): string[] {
   const out: string[] = [];
   const pushRef = (r?: SoundRef | SoundRef[]) => {

@@ -20,6 +20,7 @@ export class Login {
   errorMessage = signal('');
   successMessage = signal('');
 
+  // Fonction de connexion
   login() {
     if (!this.username || !this.password) {
       this.errorMessage.set('Veuillez remplir tous les champs correctement.');

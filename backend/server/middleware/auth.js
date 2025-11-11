@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 
+// Middleware d'authentification
 function authenticateToken(req, res, next) {
   const authHeader = req.headers.authorization;
   const token = authHeader?.split(' ')[1];
@@ -8,7 +9,7 @@ function authenticateToken(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    console.log('✅ Token OK :', decoded);
+    // console.log('Token OK :', decoded);
     req.user = { id: decoded.id };
     next();
   } catch (err) {

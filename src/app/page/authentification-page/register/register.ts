@@ -23,6 +23,7 @@ export class Register {
   errorMessage = signal('');
   successMessage = signal('');
 
+  // Fonction d'inscription
   register() {
     if (!this.email || !this.password || !this.username || this.password !== this.confirmPassword) {
       this.errorMessage.set('Veuillez remplir tous les champs correctement.');

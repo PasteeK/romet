@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 
+// Schéma d'un monstre dans la base de données
 const monsterSchema = new mongoose.Schema({
     type: {
         type: String,

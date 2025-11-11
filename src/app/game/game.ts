@@ -20,9 +20,11 @@ export class Game implements AfterViewInit, OnDestroy {
   constructor(private saveSvc: SavegameService) {}
 
   ngAfterViewInit(): void {
+    // Défini les dimensions du jeu
     const GAME_WIDTH = 1280;
     const GAME_HEIGHT = 720;
 
+    // Configuration de Phaser
     const config: Phaser.Types.Core.GameConfig = {
       type: Phaser.AUTO,
       backgroundColor: '#1d1d1d',
@@ -33,9 +35,11 @@ export class Game implements AfterViewInit, OnDestroy {
         height: GAME_HEIGHT,
         parent: this.gameContainer.nativeElement
       },
+      // Permet d'ajouter du html dans le jeu
       dom: {
         createContainer: true
       },
+      // Permet de limiter le framerate (evite le memory leak et la surcharge inutile du cpu)
       fps: { target: 60, forceSetTimeOut: true },
       scene: []
     };

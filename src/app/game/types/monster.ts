@@ -1,4 +1,5 @@
 
+// Typage des actions de monstre
 export type MonsterActionType =
   'attack' |
   'defend' |

@@ -26,15 +26,15 @@ export function filterPoolByDefeated<T extends { name: string }>(
   type: EncounterType,
   pool: T[],
 ): T[] {
-  if (type === 'boss') return pool; // le boss n'est pas filtré ici
+  if (type === 'boss') return pool;
   const p = readPools(scene);
   const banned = new Set(type === 'elite' ? p.elite : p.normal);
   const filtered = pool.filter(m => !banned.has(m.name));
-  return filtered.length > 0 ? filtered : pool; // si tout est filtré, on retombe sur le pool complet
+  return filtered.length > 0 ? filtered : pool;
 }
 
 export function markMonsterDefeated(scene: Phaser.Scene, type: EncounterType, name: string) {
-  if (type === 'boss') return; // on gère le reset ailleurs
+  if (type === 'boss') return;
   const p = readPools(scene);
   const arr = type === 'elite' ? p.elite : p.normal;
   if (!arr.includes(name)) arr.push(name);
@@ -45,7 +45,6 @@ export function clearDefeatedPools(scene: Phaser.Scene) {
   writePools(scene, { normal: [], elite: [] });
 }
 
-// (optionnel) lecture pour persistance si tu veux la sauvegarder
 export function getDefeatedPools(scene: Phaser.Scene): Pools {
   return readPools(scene);
 }

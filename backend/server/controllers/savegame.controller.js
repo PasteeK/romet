@@ -1,14 +1,14 @@
 const Savegame = require('../schemas/Savegame');
 const Player   = require('../schemas/Player');
 
-// GET /savegames/current
+// Controlleur permettant de recuperer la partie en cours
 async function getCurrent(_req, res) {
   const save = await Savegame.findOne({}).sort({ updatedAt: -1 }).lean();
   if (!save) return res.status(204).send();
   res.json(save);
 }
 
-// POST /savegames/start
+// Controlleur permettant de commencer une partie
 async function start(req, res) {
   try {
     const { seed, difficulty, mapNodes, startNodeId, startingHp, maxHp } = req.body;
@@ -28,7 +28,7 @@ async function start(req, res) {
       clientTick: 0
     });
 
-    // Incrémente gamesPlayed si un joueur est attaché (JWT / session)
+    // Incrémente le "gamesPlayed" du joueur de 1
     const playerId = req.user?.id || req.user?._id || req.headers['x-player-id'];
     if (playerId) {
       await Player.findByIdAndUpdate(
@@ -45,7 +45,7 @@ async function start(req, res) {
   }
 }
 
-// PATCH /savegames/:id/move
+// Controlleur permettant de faire progresser le joueur dans la carte
 async function move(req, res) {
   const { id } = req.params;
   const { targetNodeId, clientTick } = req.body;
@@ -54,7 +54,7 @@ async function move(req, res) {
   if (!save) return res.status(404).json({ error: 'save not found' });
 
   if (save.combat && save.combat.status === 'active' && !save.combat.finished && !save.combat.ended) {
-    return res.status(400).json({ error: 'combat already active' });
+    return res.status(400).json({ error: 'fight already active' });
   }
 
   const cur = save.mapNodes.find(n => n.id === save.currentNodeId);
@@ -84,14 +84,14 @@ async function move(req, res) {
   res.json(save);
 }
 
-// POST /savegames/:id/combat/start
+// Controlleur permettant de commencer un combat
 async function combatStart(req, res) {
   const { id } = req.params;
   const {
     encounterId,
     rngSeed,
     monsters = [],
-    encounterType = 'normal'   // ← IMPORTANT: on lit bien depuis le body
+    encounterType = 'normal'
   } = req.body;
 
   const save = await Savegame.findById(id);
@@ -117,7 +117,7 @@ async function combatStart(req, res) {
   res.json(save);
 }
 
-// POST /savegames/:id/combat/end
+// Controlleur permettant de terminer un combat
 async function combatEnd(req, res) {
   const { id } = req.params;
   const { result, playerHp, goldDelta = 0 } = req.body;

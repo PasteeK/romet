@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { MonsterSounds, SoundSet } from "./monsters/types";
 
+// Définition des actions disponibles (Evite les typo, j'en ai deja fait plusieurs alors je suis passé par des types)
 export type MonsterActionType =
   'attack' |
   'defend' |
@@ -15,6 +16,7 @@ export type MonsterActionType =
   'combo' |
   'milk';
 
+// Définition d'une action
 export interface MonsterAction {
   type: MonsterActionType;
   value: number;
@@ -26,22 +28,24 @@ export interface MonsterAction {
 
 function pickOne<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
 
+// Joue un son simple s'il existe, sinon joue un son aléatoire parmis le cast de base
 function playSound(scene: Phaser.Scene, set?: SoundSet) {
   if (!set) return;
   const ref = Array.isArray(set) ? pickOne(set) : set;
   if (!ref) return;
 
   if (typeof ref === "string") {
-    // clé simple
+    // clé
     scene.sound.play(ref);
   } else {
-    // objet avec options
     const { key, volume, rate, detune } = ref;
     scene.sound.play(key, { volume, rate, detune });
   }
 }
 
+// Création du monstre pour Phaser
 export class Monster extends Phaser.GameObjects.Container {
+  // Variables
   private hpBar: Phaser.GameObjects.Graphics;
   private maxHP: number;
   private currentHP: number;
@@ -58,16 +62,20 @@ export class Monster extends Phaser.GameObjects.Container {
 
   constructor(scene: Phaser.Scene, x: number, y: number, texture: string, hp: number, actions: MonsterAction[], sounds?: MonsterSounds) {
     super(scene, x, y);
+    // Variables
     this.maxHP = hp;
     this.currentHP = hp;
     this.actions = actions;
     this.sounds = sounds;
 
+    // Création du sprite
     this.sprite = scene.add.image(0, 10, texture).setOrigin(0.5);
 
+    // Création de la barre de vie visuelle
     this.hpBar = scene.add.graphics();
     this.updateHPBar();
 
+    // Création du texte de la barre de bouclier
     this.shieldText = scene.add.text(0, -this.sprite.height / 2 - 20, '', {
       fontSize: '16px',
       color: '#00ffff',
@@ -87,19 +95,23 @@ export class Monster extends Phaser.GameObjects.Container {
     playSound(this.scene, this.sounds?.spawn);
   }
 
+  // Jouer le son de hit
   private playHit() {
     playSound(this.scene, this.sounds?.hit);
   }
 
+  // Jouer le son de mort
   private playDeath() {
     playSound(this.scene, this.sounds?.death);
   }
 
+  // Jouer le son d'action
   private playAction(type: MonsterActionType) {
     const set = this.sounds?.action?.[type];
     playSound(this.scene, set);
   }
 
+  // Récupérer le nombre d’actions en attente
   public getPendingCount(): number {
     return this.pending.length;
   }
@@ -116,22 +128,23 @@ export class Monster extends Phaser.GameObjects.Container {
 
   // Récupérer le prochain action
   public peekNextAction(): { type: MonsterActionType; value: number } {
-    // 1) si on a déjà des sous-actions en attente
+    // Check d'abord si des actions sont en attente
     if (this.pending.length > 0) {
       const a = this.pending[0];
       return { type: a.type, value: a.value };
     }
-    // 2) sinon regarder l’action de haut niveau courante
+    // Si aucune action en attente et qu’il reste des actions
     if (!this.actions || this.actions.length === 0) {
       return { type: 'waiting', value: 0 };
     }
     const idx = Math.min(this.actionIndex, this.actions.length - 1);
     const a = this.actions[idx];
 
+    // Check si l'action est de type "combo"
     if (a.type === 'combo') {
       const expanded = this.expandCombo(a);
       if (expanded.length > 0) {
-        // On ne consomme pas encore l’index ici, c’est playNextAction qui décidera
+        // Ne pas consommer l’index tant qu'il reste des actions dans le combo
         return { type: expanded[0].type, value: expanded[0].value };
       }
       return { type: 'waiting', value: 0 };
@@ -190,60 +203,51 @@ export class Monster extends Phaser.GameObjects.Container {
       });
       this.scene.tweens.add({ targets: this, x: this.x - 10, duration: 50, yoyo: true, repeat: 2 });
 
-      // Son de "hit" (uniquement s'il reste du dégât après bouclier)
+      // Son de "hit"
       this.playHit();
     }
 
     this.updateHPBar();
 
+    // Si le monstre meurt, joue le son de sa mort
     if (!this.isDead && this.currentHP <= 0) {
       this.isDead = true;
-      this.playDeath(); // <— son de mort
+      this.playDeath();
       this.scene.events.emit('monster:dead');
     }
   }
 
-  // Récupérer le prochain action
+  // Récupérer et jouer la prochaine action
   public playNextAction(): MonsterAction {
-    // 1) si on a des sous-actions en attente → servir la première
     if (this.pending.length > 0) {
       const next = this.pending.shift()!;
-      this.playAction(next.type); // tes sons d’action existants
-      this.emitIntentChanged();   // met à jour l’intent pour l’étape suivante
+      this.playAction(next.type);
+      this.emitIntentChanged();
       return next;
     }
-
-    // 2) sinon, on regarde l’action “de haut niveau”
     let action: MonsterAction = this.actions.length
       ? this.actions[Math.min(this.actionIndex, this.actions.length - 1)]
       : { type: 'waiting', value: 0, description: '' };
 
-    // Si c’est un combo → on déplie, on enfile, et on CONSOMME l’index de haut niveau
     if (action.type === 'combo') {
       const expanded = this.expandCombo(action);
       const delay = Math.max(0, action.delayMs ?? 0);
       if (expanded.length > 0) {
         this.actionIndex = (this.actionIndex + 1) % this.actions.length;
-        // Enfiler toutes les étapes
         this.pending.push(...expanded);
-        // Jouer immédiatement la première étape comme “résultat” de cet appel
         const first = this.pending.shift()!;
         this.playAction(first.type);
         if (delay > 0 && this.scene?.time) {
-          // si tu veux forcer un spacing interne au combo côté Monster :
-          // (sinon laisse MainScene temporiser entre playNextAction)
         }
         this.emitIntentChanged();
         return first;
       } else {
-        // combo vide → on avance l’index et retourne waiting
         this.actionIndex = (this.actionIndex + 1) % this.actions.length;
         this.emitIntentChanged();
         return { type: 'waiting', value: 0, description: '' };
       }
     }
 
-    // 3) action atomique classique
     if (this.actions.length > 0) {
       this.actionIndex = (this.actionIndex + 1) % this.actions.length;
     }
@@ -264,11 +268,10 @@ export class Monster extends Phaser.GameObjects.Container {
     return new Phaser.Math.Vector2(world.x, world.y);
   }
 
+  // Changer la forme du monstre en fonction de son index
   public transformToForm(formIndex: number) {
-    console.log('[Monster] transformToForm', formIndex);
-    // Récupère la clé actuelle (ex: "yunderA2")
+    // console.log('[Monster] transformToForm', formIndex);
     const baseKey = this.sprite.texture.key.replace(/\d+$/, ""); 
-    // → supprime les chiffres à la fin s’il y en a
 
     if (formIndex === 0) {
       this.sprite.setTexture(baseKey);
@@ -278,7 +281,7 @@ export class Monster extends Phaser.GameObjects.Container {
     if (this.scene.textures.exists(newKey)) {
       this.sprite.setTexture(newKey);
 
-      // petit effet visuel pour la transition
+      // effet visuel pour la transition
       this.scene.tweens.add({
         targets: this.sprite,
         alpha: { from: 0, to: 1 },
@@ -290,6 +293,7 @@ export class Monster extends Phaser.GameObjects.Container {
     }
   }
 
+  // Etendre un combo pendant qu'il se joue
   private expandCombo(a: MonsterAction): MonsterAction[] {
     if (a.type !== 'combo' || !a.steps || a.steps.length === 0) return [];
     const times = Math.max(1, a.repeat ?? 1);
@@ -306,6 +310,7 @@ export class Monster extends Phaser.GameObjects.Container {
     return out;
   }
 
+  // Sort Milk
   public milk(value: number) {
     this.currentHP += value;
 

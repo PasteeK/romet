@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 
+// Bouton de fin de tour
 export class BtnEndTurn {
     private button: Phaser.GameObjects.Rectangle;
     private text: Phaser.GameObjects.Text;
@@ -12,15 +13,18 @@ export class BtnEndTurn {
         }).setOrigin(0.5);
     }
 
+    // Evenement onClick
     onClick(callback: () => void) {
         this.button.on('pointerdown', callback);
     }
 
+    // Affichage
     setVisible(visible: boolean) {
         this.button.setVisible(visible);
         this.text.setVisible(visible);
     }
 
+    // Activation
     setEnabled(enabled: boolean) {
         this.button.disableInteractive();
         if (enabled) {
@@ -29,6 +33,7 @@ export class BtnEndTurn {
         this.text.setAlpha(enabled ? 1 : 0.5);
     }
 
+    // Position
     public setPosition(x: number, y: number): void {
         this.button.setPosition(x, y);
         this.text.setPosition(x, y);

@@ -50,7 +50,7 @@ export class Player {
   // Voler de l'or au joueur
   public stealGoldPercent(percent: number) {
     const p = Math.max(0, Math.min(100, percent));
-    const amountToSteal = Math.floor(this.gold * (p / 100)); // ✅ typo fix
+    const amountToSteal = Math.floor(this.gold * (p / 100));
     this.gold = Math.max(0, this.gold - amountToSteal);
     this.ui?.setGold(this.gold);
     return amountToSteal;

@@ -2,7 +2,9 @@ import Phaser from 'phaser';
 import { Card } from './Card';
 import { GameUI } from './GameUI';
 
+// Zone de jeu
 export class PlayZone {
+    // Variables
     private scene: Phaser.Scene;
     private zone: Phaser.GameObjects.Rectangle;
     private cards: Card[] = [];
@@ -28,6 +30,7 @@ export class PlayZone {
     constructor(scene: Phaser.Scene, x: number, y: number, width: number, height: number) {
         this.scene = scene;
 
+        // Création de la zone dans la scène
         this.zone = scene.add.rectangle(x, y, width, height, 0x333333, 0.4)
             .setStrokeStyle(2, 0xD6A858)
             .setDepth(-1)
@@ -104,19 +107,21 @@ export class PlayZone {
         return this.cards.length;
     }
 
+    // Set le nom du monstre
     public setMonsterName(name: string | null) {
         this.currentMonsterName = name;
     }
 
-    // Evaluer la main
+    // Evaluer la main / Calcul du score
     evaluateHand(): string {
         if (this.cards.length < 1) return '';
 
+        // Dictionnaire de valeurs, il permet de remplacer les lettres J, Q, K et A par leur valeur numérique
         const valueMap: Record<string, number> = {
             '2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,'10':10,'J':11,'Q':12,'K':13,'A':14
         };
 
-        // Qui est le monstre ?
+        // Récupère le monstre que le joueur affronte actuellement (utile pour YunderA, qui prend plus de dégats des cartes de coeur)
         const monsterKey =
             (this.currentMonsterName ??
             (this.scene.game.registry.get('currentMonsterKey') as string | undefined) ??
@@ -125,23 +130,21 @@ export class PlayZone {
 
         const isYunderA = monsterKey.startsWith('yundera');
 
-        // 1) RANGS BRUTS pour identifier la main (ne JAMAIS doubler ici)
         const baseValues = this.cards.map(c => valueMap[c.value]);
         const suits      = this.cards.map(c => c.suit);
 
-        // 2) VALEURS DE SCORE (cœurs doublés seulement contre YunderA)
         const scoreValues = this.cards.map((c, i) => {
             const v = baseValues[i];
             return (isYunderA && c.suit === 'heart') ? v * 2 : v;
         });
 
-        // Comptages pour les combinaisons → basé sur baseValues
+        // Comptages pour les combinaisons basé sur baseValues
         const counts: Record<number, number> = {};
         for (const v of baseValues) counts[v] = (counts[v] || 0) + 1;
         const countValues = Object.values(counts).sort((a, b) => b - a);
         const uniqueCounts = countValues.join('');
 
-        // Flush / Straight → basé sur baseValues
+        // Couleur / Suite basé sur baseValues
         const isFlush = this.cards.length === 5 && suits.every(s => s === suits[0]);
 
         let isStraight = false;
@@ -153,12 +156,12 @@ export class PlayZone {
                 isStraight = true; break;
             }
             }
-            // A-2-3-4-5 (wheel)
+            // A-2-3-4-5 (Suite minimale)
             const wheel = [14, 2, 3, 4, 5];
             if (wheel.every(v => baseValues.includes(v))) isStraight = true;
         }
 
-        // Détermination du type de main (inchangé, mais basé sur baseValues/uniqueCounts/isFlush/isStraight)
+        // Détermination du type de main
         let handType = 'Carte Haute';
         let multiplier = 1;
 
@@ -185,11 +188,12 @@ export class PlayZone {
             if (uniqueCounts === '2')   { handType='Paire'; multiplier=1.5; }
         }
 
-        // 3) Score final = somme des valeurs pondérées * multiplier
+        // Score Total
         const total = scoreValues.reduce((s, v) => s + v, 0);
         const score = Math.round(total * multiplier);
         this.lastScore = score;
 
+        // Mise à jour de l'UI
         this.gameUI?.setScore(handType, score);
         return `${handType} - Score : ${score}`;
         }

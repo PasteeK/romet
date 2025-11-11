@@ -28,7 +28,7 @@ const updatePlayer = async (req, res) => {
     res.status(200).json({ modified, player });
   } catch (err) {
     if (err.name === 'CastError') return res.status(400).json({ message: 'Invalid user id' });
-    if (err.code === 11000)      return res.status(409).json({ message: 'Username or email already exists' });
+    if (err.code === 11000) return res.status(409).json({ message: 'Username or email already exists' });
     res.status(err.status || 500).json({ message: err.message || 'Server error' });
   }
 };
@@ -39,7 +39,7 @@ const getMe = async (req, res) => {
   try {
     const user = await Player.findById(req.user.id)
       .select('username email gamesPlayed preferences');
-    if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
+    if (!user) return res.status(404).json({ message: 'user not found' });
 
     res.json({
       pseudo: user.username,
@@ -48,7 +48,7 @@ const getMe = async (req, res) => {
       preferences: user.preferences
     });
   } catch (err) {
-    res.status(500).json({ message: 'Erreur serveur' });
+    res.status(500).json({ message: 'Servor error' });
   }
 };
 
@@ -66,7 +66,7 @@ const setTutorial = async (req, res) => {
   }
 };
 
-// Controlleur permettant d'incrementer le nombre de parties jouées
+// Controlleur permettant d'incrementer le nombre de parties jouées via l'opérateur $inc fournit par mongoose
 const incrementGamesPlayed = async (req, res) => {
   try {
     const updatedPlayer = await Player.findByIdAndUpdate(
@@ -76,13 +76,13 @@ const incrementGamesPlayed = async (req, res) => {
     ).select('gamesPlayed');
 
     if (!updatedPlayer) {
-      return res.status(404).json({ message: 'Utilisateur non trouvé' });
+      return res.status(404).json({ message: 'User not found' });
     }
 
     res.json({ gamesPlayed: updatedPlayer.gamesPlayed });
   } catch (err) {
-    console.error('Erreur update gamesPlayed :', err);
-    res.status(500).json({ message: 'Erreur serveur' });
+    console.error('error incrementing gamesPlayed :', err);
+    res.status(500).json({ message: 'Servor error' });
   }
 };
 
@@ -94,17 +94,17 @@ const login = async (req, res) => {
     const token = await playerService.login(username, password);
     res.status(200).json({ token });
   } catch (err) {
-    console.error('❌ Login failed:', err.message);
+    console.error('Login failed:', err.message);
     res.status(401).json({ message: err.message });
   }
 }
 
 // Controlleur permettant de supprimer un joueur
 const deletePlayer = async (req, res) => {
-  console.log('🧠 Utilisateur à supprimer :', req.user);
+  // console.log('User to delete :', req.user);
   try {
-    const userId = req.user.id; // ou req.user._id selon ton middleware
-    console.log("Id debug : " + userId)
+    const userId = req.user.id;
+    // console.log("Id debug : " + userId)
     const player = await playerService.deletePlayer(userId);
     res.status(200).json(player);
   } catch (error) {

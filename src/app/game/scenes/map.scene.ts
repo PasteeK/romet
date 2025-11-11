@@ -9,7 +9,9 @@ import { EncounterType } from "../types/encounter";
 import { BOSS_DEFINITIONS } from "../classes/monsters/bossMonster";
 import { ELITE_DEFINITIONS } from "../classes/monsters/eliteMonster";
 
+// Scène de la carte
 export class MapScene extends Phaser.Scene {
+  // Variables
   private gameUI!: GameUI;
   private nodes: MapNode[] = [];
 
@@ -25,6 +27,7 @@ export class MapScene extends Phaser.Scene {
   private clearedSet = new Set<number>();
   private choices: Record<number, number> = {};
 
+  // Afficheage des noeuds sous forme de "layer"
   private readonly LAYERS: number[][] = [
     [0, 1, 2],
     [3, 4, 5, 6, 7, 8],
@@ -33,6 +36,7 @@ export class MapScene extends Phaser.Scene {
     [17],
   ];
 
+  // Relations entre les noeuds
   private readonly EDGES: Record<number, number[]> = {
     0: [3, 4],
     1: [5, 6],
@@ -54,7 +58,7 @@ export class MapScene extends Phaser.Scene {
   private PARENTS: Record<number, number[]> = {};
 
   constructor() { super('MapScene'); }
-
+  // Initialisation
   init(data?: { clearedNodes?: number[]; forceNew?: boolean }) {
     const inj = (window as any).ngInjector as Injector | undefined;
     if (inj && typeof (inj as any).get === 'function') {
@@ -114,7 +118,7 @@ export class MapScene extends Phaser.Scene {
     const scale = Math.min(this.scale.width / map.width, this.scale.height / map.height);
     map.setScale(scale);
 
-    // Noeuds visuels
+    // Noeuds visuels + positions
     const nodePositions = [
       { x: 583, y: 548 },   { x: 787.5, y: 548 }, { x: 992, y: 548 },
       { x: 445, y: 410 },   { x: 583, y: 410 },   { x: 718.5, y: 410 },
@@ -235,8 +239,6 @@ export class MapScene extends Phaser.Scene {
     const rollType = (): 'fight' | 'elite' | 'shop' | 'smoking' => {
       const r = Math.random();
       if (r < 0.85) return 'fight';
-      // if (r < 0.70) return 'elite';
-      // if (r < 0.85) return 'shop';
       return 'smoking';
     };
 
@@ -403,13 +405,13 @@ export class MapScene extends Phaser.Scene {
       }
 
       try {
-        // 1) move
+        // move
         this.save = await this.saveSvc.move(this.save._id, {
           targetNodeId: targetId,
           clientTick: this.save.clientTick,
         });
 
-        // 2) si un combat est actif → reprise
+        // si un combat est actif, le reprendre
         if (this.isCombatActive(this.save)) {
           this.game.registry.set('saveId', this.save._id);
           const ctype = ((this.save as any)?.combat?.encounterType as EncounterType) || 'normal';
@@ -419,7 +421,7 @@ export class MapScene extends Phaser.Scene {
           return;
         }
 
-        // 3) type de nœud
+        // type de nœud
         const freshNode = this.save.mapNodes.find((n: MapNodeDTO) => n.id === targetId)!;
 
         if (freshNode.type === 'smoking') {
@@ -498,7 +500,7 @@ export class MapScene extends Phaser.Scene {
           }
         }
 
-        // 4) sinon → mise à jour map
+        // sinon mise à jour de la map
         this.applySaveToNodes(this.save);
 
       } catch (e: any) {
@@ -524,10 +526,6 @@ export class MapScene extends Phaser.Scene {
 
   private saveCleared() {
     try { localStorage.setItem(this.storageClearedKey, JSON.stringify([...this.clearedSet])); } catch {}
-  }
-
-  private saveChoices() {
-    try { localStorage.setItem(this.storageChoiceKey, JSON.stringify(this.choices)); } catch {}
   }
 
   // Gestion des parents
@@ -563,12 +561,5 @@ export class MapScene extends Phaser.Scene {
     }
     this.applySaveToNodes(save);
     this.applySaveStatsToUI(save);
-  }
-
-  private findLayerOf(index: number): number {
-    for (let l = 0; l < this.LAYERS.length; l++) {
-      if (this.LAYERS[l].includes(index)) return l;
-    }
-    return -1;
   }
 }

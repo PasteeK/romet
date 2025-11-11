@@ -1,10 +1,12 @@
 import Phaser from 'phaser';
 
+// Type de données de tutorial
 type TutData = {
   onComplete?: (state:'skipped'|'completed') => void;
   getTargetBounds?: (key: string) => Phaser.Geom.Rectangle | null;
 };
 
+// Type de données d'une étape
 type Step = {
   html: string;
   onEnter?: () => void;
@@ -21,6 +23,7 @@ type Step = {
   awaitSceneSleep?: string | string[];
 };
 
+// Scène de tutoriel
 export class TutorialScene extends Phaser.Scene {
   private done = false;
   private stepIndex = 0;
@@ -50,7 +53,7 @@ export class TutorialScene extends Phaser.Scene {
   private holeBorders: Phaser.GameObjects.Graphics[] = [];
   private borderTweensArr: Phaser.Tweens.Tween[] = [];
 
-  // Data passé par la scène appelante (toujours défini)
+  // Data passé par la scène qui appelle le tutoriel
   private tutData: TutData = {};
 
   constructor() { super('TutorialScene'); }
@@ -70,7 +73,7 @@ export class TutorialScene extends Phaser.Scene {
     this.veil = this.add.graphics().setDepth(1);
     this.veil.fillStyle(0x000000, 0.6).fillRect(0, 0, W, H);
 
-    // --- Panneau / éléments ---
+    // Panneau / éléments
     this.panel = this.add.rectangle(W / 1.625, H / 1.25, 900, 220, 0x1a1a1a, 0.95)
       .setStrokeStyle(2, 0xF7A03C).setDepth(2);
 
@@ -86,7 +89,7 @@ export class TutorialScene extends Phaser.Scene {
       .setStrokeStyle(2, 0xF7A03C).setDepth(2)
       .setInteractive({ useHandCursor: true });
 
-    // HTML riche (DOMElement) dans la zone texte
+    // HTML dans la zone texte
     const PADDING = 12;
     const area = this.textBg.getBounds();
     this.dom = this.add.dom(area.x + PADDING, area.y + PADDING)
@@ -98,7 +101,7 @@ export class TutorialScene extends Phaser.Scene {
     this.dom.on('click', (e: any) => {
       const el = e.target as HTMLElement;
 
-      // ✅ Skip via lien dans le HTML (toujours autorisé)
+      // Skip via lien dans le HTML
       const clickable = el.closest('[data-action]') as HTMLElement | null;
       if (clickable?.getAttribute('data-action') === 'skip') {
         e.preventDefault();
@@ -106,19 +109,18 @@ export class TutorialScene extends Phaser.Scene {
         return;
       }
 
-      // Si le step est en mode advance:'external', on n’avance pas par la box
       if (this.dialogLocked) return;
 
       this.nextStep();
     });
 
-    // (En plus) clique sur le fond textuel
+    // clique sur le fond textuel
     this.textBg.on('pointerup', () => {
-      if (this.dialogLocked) return;  // ⬅️ crucial
+      if (this.dialogLocked) return;
       this.nextStep();
     });
 
-    // Anim “next” (chevrons)
+    // Anim “next”
     if (!this.anims.exists('nextBlink')) {
       this.anims.create({
         key: 'nextBlink',
@@ -139,7 +141,7 @@ export class TutorialScene extends Phaser.Scene {
 
     this.dialogReady = true;
 
-    // Steps : 1) intro, 2) spotlight 1er événement
+    // Etapes, dans l'ordre
     this.steps = [
       {
         html:
@@ -363,10 +365,11 @@ export class TutorialScene extends Phaser.Scene {
 
     this.applyStep(this.steps[0]);
 
-    this.input.setTopOnly(true); // l’overlay capte les clics
+    this.input.setTopOnly(true);
   }
 
-  // ——— Step management ———
+  // Step management
+  // passe à l'étape suivante
   private nextStep() {
     if (this.done) return;
 
@@ -377,7 +380,6 @@ export class TutorialScene extends Phaser.Scene {
       this.input.off('pointerup', this.awaitClickHandler);
       this.awaitClickHandler = undefined;
     }
-    // NEW: retirer tous les listeners de scène du step courant
     this.sceneOffs.forEach(off => off());
     this.sceneOffs = [];
 
@@ -389,14 +391,13 @@ export class TutorialScene extends Phaser.Scene {
     this.applyStep(this.steps[this.stepIndex]);
   }
 
+  // Applique l'étape actuelle
   private applyStep(step: Step) {
-    // 1) Déplacer la box
     if (step.panelAt) {
       const { x, y } = step.panelAt;
       this.moveDialogTo(x, y);
     }
 
-    // 2) MAJ DOM
     const PADDING = 12;
     const a = this.textBg.getBounds();
     const el = this.dom.node as HTMLElement;
@@ -405,11 +406,9 @@ export class TutorialScene extends Phaser.Scene {
     el.innerHTML    = this.makeHTML(step.html);
     this.dom.setPosition(a.x + PADDING, a.y + PADDING);
 
-    // 3) Gating / pass-through
     this.setDialogLocked(step.advance === 'external');
     this.input.setTopOnly(!(step.passThrough === true));
 
-    // 3bis) attente clic externe éventuelle
     const awaitRect = this.resolveAwaitRect(step);
     if (awaitRect) {
       this.awaitClickHandler = (pointer: Phaser.Input.Pointer) => {
@@ -422,17 +421,15 @@ export class TutorialScene extends Phaser.Scene {
       this.input.on('pointerup', this.awaitClickHandler);
     }
 
-    // ——— Avance sur changement de scène ———
     this.bindSceneEventsForKeys(step.awaitSceneStart, Phaser.Scenes.Events.START);
     this.bindSceneEventsForKeys(step.awaitSceneWake,  Phaser.Scenes.Events.WAKE);
     this.bindSceneEventsForKeys(step.awaitSceneSleep, Phaser.Scenes.Events.SLEEP);
-    // "STOP" côté API → on utilise l’event réel "SHUTDOWN"
     this.bindSceneEventsForKeys(step.awaitSceneStop,  Phaser.Scenes.Events.SHUTDOWN);
 
-    // 4) Hook custom
     step.onEnter?.();
   }
 
+  // Fonction pour "injecter" du HTML dans ma boite de dialogue
   private makeHTML(inner: string) {
     return `
     <div style="
@@ -449,6 +446,7 @@ export class TutorialScene extends Phaser.Scene {
     </div>`;
   }
 
+  // Termine la scène
   private async finish(state: 'skipped'|'completed') {
     if (this.awaitClickHandler) {
       this.input.off('pointerup', this.awaitClickHandler);
@@ -460,12 +458,9 @@ export class TutorialScene extends Phaser.Scene {
     this.done = true;
     this.clearHole();
 
-    // 🔐 Récupère le token si tu utilises le login back
     const token = localStorage.getItem('jwt') || localStorage.getItem('token');
 
-    // 🔁 Essaie d’enregistrer côté back AVANT de stopper la scène (mais sans bloquer l’UX si ça échoue)
     try {
-      // ⚠️ adapte l’URL selon le montage de ton router (ex: '/players/me/tutorial' ou '/api/players/me/tutorial')
       await fetch('/players/me/tutorial', {
         method: 'PUT',
         headers: {
@@ -473,11 +468,9 @@ export class TutorialScene extends Phaser.Scene {
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
         body: JSON.stringify({ action: 'disable', tutorialVersion: 1 }),
-        // (si front ≠ back origin) -> ajoute: credentials: 'include' et configure CORS côté serveur
       });
     } catch (e) {
       console.warn('[Tuto] Sauvegarde préférence a échoué', e);
-      // Fallback local: au moins on évite de relancer tout de suite dans la même session
       this.game.registry.set('tutorialDone', true);
       try { localStorage.setItem('romet:tutorialDone', '1'); } catch {}
     }
@@ -489,26 +482,23 @@ export class TutorialScene extends Phaser.Scene {
     });
   }
 
+  // Tentative pour illuminer un rectangle sans avoir à le positionner
   private makeHole(rect: Phaser.Geom.Rectangle, radius: number = 12) {
     this.clearHole();
 
-    // Graphics blanc = shape du masque
     this.holeG = this.add.graphics();
     this.holeG.fillStyle(0xffffff, 1);
     this.holeG.fillRoundedRect(rect.x, rect.y, rect.width, rect.height, radius);
     this.holeG.setVisible(false);
 
-    // Applique le mask inversé sur le voile
     this.holeMask = new Phaser.Display.Masks.GeometryMask(this, this.holeG);
     this.holeMask.setInvertAlpha(true);
     this.veil.setMask(this.holeMask);
 
-    // --- Bordure néon ---
     this.holeBorder = this.add.graphics().setDepth(5);
-    this.holeBorder.lineStyle(4, 0xffffff, 1); // épaisseur 4px, blanc
+    this.holeBorder.lineStyle(4, 0xffffff, 1);
     this.holeBorder.strokeRoundedRect(rect.x, rect.y, rect.width, rect.height, radius);
 
-    // Animation pour donner un effet "néon pulsant"
     this.borderTween = this.tweens.add({
       targets: this.holeBorder,
       alpha: { from: 1, to: 0.3 },
@@ -519,7 +509,7 @@ export class TutorialScene extends Phaser.Scene {
     });
   }
 
-  /** Retire le trou et libère les ressources. */
+  // Supprile la surbrillance de toute la scène
   private clearHole() {
     (this.veil as any)?.clearMask?.(true);
     this.holeMask?.destroy();
@@ -527,7 +517,7 @@ export class TutorialScene extends Phaser.Scene {
     this.holeMask = undefined;
     this.holeG = undefined;
 
-    // détruire toutes les bordures + tweens
+    // détruire toutes les bordures
     this.borderTweensArr.forEach(t => t.stop());
     this.borderTweensArr = [];
 
@@ -535,9 +525,10 @@ export class TutorialScene extends Phaser.Scene {
     this.holeBorders = [];
   }
 
+  // Positionne la boite de dialogue
   private layoutDialogAt(x: number, y: number) {
     if (!this.dialogReady || !this.panel || !this.profileBg || !this.profilePic || !this.textBg || !this.nextIcon) {
-      return; // on sort si tout n'est pas prêt
+      return;
     }
 
     this.panel.setPosition(x, y);
@@ -549,11 +540,11 @@ export class TutorialScene extends Phaser.Scene {
     if (this.skipBtn) this.skipBtn.setPosition(this.panel.x + 430, this.panel.y - 95);
   }
 
+  // Déplace la boite de dialogue
   private moveDialogTo(x: number, y: number) {
     this.layoutDialogAt(x, y);
   }
 
-  /** Initialise le mask si besoin (une seule fois) */
   private ensureHoleMask(radiusDefault: number = 12) {
     if (this.holeG) return;
 
@@ -566,14 +557,12 @@ export class TutorialScene extends Phaser.Scene {
     this.veil.setMask(this.holeMask);
   }
 
-  /** Ajoute (n'ENLÈVE PAS) un trou au masque courant */
+  // Ajoute une surbrillance sur un rectangle
   private addHole(rect: Phaser.Geom.Rectangle, radius: number = 12) {
     this.ensureHoleMask(radius);
 
-    // on DESSINE un nouveau rectangle dans le même Graphics (mask cumulatif)
     this.holeG!.fillRoundedRect(rect.x, rect.y, rect.width, rect.height, radius);
 
-    // --- Bordure néon par trou ---
     const border = this.add.graphics().setDepth(5);
     border.lineStyle(4, 0xffffff, 1);
     border.strokeRoundedRect(rect.x, rect.y, rect.width, rect.height, radius);
@@ -591,11 +580,12 @@ export class TutorialScene extends Phaser.Scene {
     this.borderTweensArr.push(tw);
   }
 
-  /** API pratique pour ton code existant */
+  // Ajoute une surbrillance sur un rectangle par coordonnées
   private makeHoleAt(x: number, y: number, w: number, h: number, radius: number = 12) {
     this.addHole(new Phaser.Geom.Rectangle(x, y, w, h), radius);
   }
 
+  // Ajoute une surbrillance sur plusieurs rectangles
   private makeHoles(rects: Phaser.Geom.Rectangle[], radius: number = 12) {
     rects.forEach(r => this.addHole(r, radius));
   }
@@ -612,15 +602,13 @@ export class TutorialScene extends Phaser.Scene {
     return null;
   }
 
+  // Bloque le "skip" via la boite de dialogue
   private setDialogLocked(locked: boolean) {
     this.dialogLocked = locked;
 
-    // Optionnel : feedback visuel et blocage des events souris
     const node = this.dom?.node as HTMLElement | undefined;
     if (node) {
       node.style.pointerEvents = locked ? 'auto' : 'auto'; 
-      // on laisse "auto" pour que le lien [data-action="skip"] reste cliquable
-      // si tu veux désactiver totalement les clics (y compris skip) : 'none'
       node.style.cursor = locked ? 'default' : 'pointer';
     }
 
@@ -630,30 +618,24 @@ export class TutorialScene extends Phaser.Scene {
     }
   }
 
-  private matchSceneKey(key: string, wanted?: string | string[]) {
-    if (!wanted) return false;
-    return Array.isArray(wanted) ? wanted.includes(key) : wanted === key;
-  }
-
   private toArray<T>(v?: T | T[]): T[] {
     if (!v) return [];
     return Array.isArray(v) ? v : [v];
   }
 
-  /** Bind un event Phaser.Scenes.Events.* sur la scène `sceneKey` (via sys.events) */
+  // Skip une étape du tutoriel en passant par un autre bind
   private bindSingleSceneSysEvent(sceneKey: string, eventName: string) {
     let sc: Phaser.Scene | undefined;
 
     try {
-      sc = this.scene.get(sceneKey) as Phaser.Scene; // récupère l'instance de scène
+      sc = this.scene.get(sceneKey) as Phaser.Scene;
     } catch {
       sc = undefined;
     }
-    if (!sc) return; // si la scène n'est pas enregistrée, on ne bind pas
+    if (!sc) return;
 
     const sysEv = sc.sys.events as Phaser.Events.EventEmitter;
     const handler = () => {
-      // cleanup puis next
       this.sceneOffs.forEach(off => off());
       this.sceneOffs = [];
       if (this.awaitClickHandler) {
@@ -667,7 +649,7 @@ export class TutorialScene extends Phaser.Scene {
     this.sceneOffs.push(() => sysEv.off(eventName, handler));
   }
 
-  /** Bind un event pour 1..n scènes (helper pratique) */
+  // Permet de passer l'étape du tutoriel via une touche de clavier
   private bindSceneEventsForKeys(keys: string | string[] | undefined, eventName: string) {
     this.toArray(keys).forEach(k => this.bindSingleSceneSysEvent(k, eventName));
   }

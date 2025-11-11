@@ -1,4 +1,5 @@
 export class GameUIStat extends Phaser.GameObjects.Container {
+    // Variables
     private bg: Phaser.GameObjects.Graphics;
     private titleText: Phaser.GameObjects.Text;
     private valueText: Phaser.GameObjects.Text;

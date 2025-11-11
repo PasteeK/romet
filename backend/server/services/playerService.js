@@ -18,7 +18,7 @@ const pickAllowed = (obj, allowed) =>
     Object.entries(obj || {}).filter(([k]) => allowed.includes(k))
   );
 
-// ajoute les champs de préférence autorisés
+// Service permettant de mettre à jour un joueur
 const updatePlayer = async (id, data) => {
   const allowed = [
     'username','email','gamesPlayed','savegame','lastLogin',
@@ -45,7 +45,7 @@ const updatePlayer = async (id, data) => {
   return { modified: result.modifiedCount > 0, player: fresh };
 };
 
-// helper pour le tuto
+// Service permettant d'afficher le tutoriel si le joueur le souhaite
 const setTutorialState = async (id, action, tutorialVersion = 1) => {
   if (!id) throw Object.assign(new Error('Missing user id'), { status: 400 });
 
@@ -71,7 +71,7 @@ const setTutorialState = async (id, action, tutorialVersion = 1) => {
 
 // Service permettant de récupérer un joueur par son id
 const getMe = async (req, res) => {
-    console.log('🆔 ID extrait du token :', req.user.id);
+    // console.log('ID extrait du token :', req.user.id);
   try {
 
     const user = await PlayerSchema.findById(req.user.id).select('username email gamesPlayed');
@@ -105,13 +105,13 @@ const login = async (username, password) => {
 
 // Service permettant de supprimer un joueur
 const deletePlayer = async (id) => {
-  console.log('🗑️ Player deleted:', id);
+  // console.log('Player deleted:', id);
   return await PlayerSchema.findByIdAndDelete(id)
 }
 
 // Service permettant de supprimer un joueur par son id
 const deletePlayerById = async (id) => {
-  console.log('🗑️ Player deleted:', id);
+  // console.log('Player deleted:', id);
   return await PlayerSchema.findByIdAndDelete(id)
 }
 

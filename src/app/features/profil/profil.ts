@@ -25,6 +25,7 @@ export class Profil implements OnInit {
   ) {}
 
   ngOnInit(): void {
+    // Récupération des infos du joueur
     this.authService.getMe().subscribe({
       next: (res) => {
         this.pseudo = res.pseudo;
@@ -36,24 +37,26 @@ export class Profil implements OnInit {
         localStorage.setItem('gamesPlayed', (res.gamesPlayed ?? 0).toString());
       },
       error: (err) => {
-        console.error('❌ Erreur chargement profil :', err);
+        console.error('Erreur chargement profil :', err);
       }
     });
   }
 
+  // Log out
   logout(): void {
     this.authService.logout();
     this.router.navigate(['/login']);
   }
 
+  // Confirmation de suppression
   deleteAccountConfirm(): void {
     if (confirm('Etes-vous sur de vouloir supprimer votre compte ?')) {
       this.deleteAccount();
     }
   }
-
+  // Suppression du compte
   deleteAccount(): void {
-    console.log('🗑️ Suppression du compte ..');
+    console.log('Suppression du compte ..');
     
     this.authService.deleteAccount().subscribe({
       next: () => {
@@ -65,6 +68,7 @@ export class Profil implements OnInit {
     });
   }
 
+  // Fermeture du profil
   close(): void {
     this.closed.emit();
   }

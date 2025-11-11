@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 
+// Schéma d'une carte dans la base de données
 const cardSchema = new mongoose.Schema({
     value: {
         type: Number,

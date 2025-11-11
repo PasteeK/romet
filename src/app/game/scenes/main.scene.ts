@@ -15,7 +15,9 @@ import { EncounterType } from "../types/encounter";
 import { extractSoundKeys } from "../audio/sound-utils";
 import { clearDefeatedPools, filterPoolByDefeated, markMonsterDefeated } from "../state/defeated-pool";
 
+// Scène principale
 export class MainScene extends Phaser.Scene {
+  // Variables
   private playZone!: PlayZone;
   private handCards: Card[] = [];
   private usedCards: string[] = [];
@@ -37,6 +39,7 @@ export class MainScene extends Phaser.Scene {
 
   private encounterType: EncounterType = 'normal';
 
+  // Renvoi les bordures de la zone de jeu (pour la hitbox)
   public getTargetBounds(key: string) {
     if (key === 'leftInfo') {
       return this.gameUI.getBounds();
@@ -44,7 +47,7 @@ export class MainScene extends Phaser.Scene {
     return null;
   }
 
-  // Compare les cartes par leur valeur
+  // Compare les cartes par leur valeur pour le tri
   private compareByValue = (a: Card, b: Card) => {
     const av = this.valueOrder.indexOf(a.value);
     const bv = this.valueOrder.indexOf(b.value);
@@ -54,7 +57,7 @@ export class MainScene extends Phaser.Scene {
     return as - bs;
   }
 
-  // Compare les cartes par leur couleur
+  // Compare les cartes par leur couleur pour le tri
   private compareBySuit = (a: Card, b: Card) => {
     const as = this.suitOrder.indexOf(a.suit);
     const bs = this.suitOrder.indexOf(b.suit);
@@ -86,7 +89,7 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
-  // Intent UI — marqués optionnels et créés "lazy" si besoin
+  // Intent UI marqués : TEST, pas encore implémenté à 100%
   private intentContainer?: Phaser.GameObjects.Container;
   private intentIcon?: Phaser.GameObjects.Image | Phaser.GameObjects.Text;
   private intentValueText?: Phaser.GameObjects.Text;
@@ -103,7 +106,7 @@ export class MainScene extends Phaser.Scene {
   constructor() {
     super("MainScene");
   }
-
+  // Initialisation
   init(data: { nodeIndex?: number; resumeFromSave?: boolean; saveId?: string; hp?: number; encounterType?: EncounterType }) {
     this.isEnding = false;
 
@@ -166,9 +169,9 @@ export class MainScene extends Phaser.Scene {
     this.load.image("yunderA2", "assets/monsters/sprites/heartQueenElite2.png");
     this.load.image("yunderA3", "assets/monsters/sprites/heartQueenElite3.png");
 
-    // Monstres (boss) — charge tous les sprites du pool boss
+    // Monstres
     BOSS_DEFINITIONS.forEach(def => {
-      // convention: le fichier porte le même nom que def.texture
+      // par "convention" pour me reoérer : le fichier porte le même nom que def.texture
       this.load.image(def.texture, `assets/monsters/sprites/${def.texture}.png`);
     });
 
@@ -196,7 +199,7 @@ export class MainScene extends Phaser.Scene {
     document.fonts.ready.then(() => {
       this.input.removeAllListeners();
 
-      // Drag unique (évite les doubles handlers)
+      // Drag unique
       this.input.on("dragstart", (_: Phaser.Input.Pointer, go: Phaser.GameObjects.GameObject) => {
         if (go instanceof Card) go.setDepth(1000);
       });
@@ -211,7 +214,7 @@ export class MainScene extends Phaser.Scene {
         }
       });
 
-      // Décor + UI statique (fond différent si boss)
+      // Décor + UI statique
       const bgKey = this.encounterType === 'boss' ? "boss_background" : "background";
       this.add.image(785, 0, bgKey).setOrigin(0.5, 0).setDisplaySize(this.scale.width / 1.25, this.scale.height / 1.42).setDepth(-10);
       this.add.tileSprite(0, 0, this.scale.width, this.scale.height, "tapis").setDisplaySize(this.scale.width * 2, this.scale.height * 2).setDepth(-12);
@@ -231,17 +234,16 @@ export class MainScene extends Phaser.Scene {
             ? ELITE_DEFINITIONS
             : MONSTER_DEFINITIONS;
 
-      // 1) filtrage blacklist de l'étage
       let candidatePool = filterPoolByDefeated(this, this.encounterType, poolRaw);
 
-      // 2) éviter le même monstre que la dernière rencontre si possible
+      // évite le même monstre que la dernière rencontre si possible
       const last = this.game.registry.get('lastMonsterName') as string | undefined;
       if (last && candidatePool.length > 1) {
         const alt = candidatePool.filter(m => m.name !== last);
         if (alt.length > 0) candidatePool = alt;
       }
 
-      // 3) si vraiment plus rien (edge case : tout filtré), on retombe sur poolRaw
+      // Lorsque le pool est vide, le reremplie entierement
       if (candidatePool.length === 0) {
         const alt = last ? poolRaw.filter(m => m.name !== last) : poolRaw;
         candidatePool = alt.length > 0 ? alt : poolRaw;
@@ -253,11 +255,12 @@ export class MainScene extends Phaser.Scene {
       this.currentMonsterConfig = randomConfig;
       this.game.registry.set('currentMonsterKey', randomConfig.texture);
 
-      // mémoriser pour éviter la répétition immédiate la prochaine fois
+      // mémorise pour éviter la répétition immédiate la prochaine fois
       if (randomConfig?.name) {
         this.game.registry.set('lastMonsterName', randomConfig.name);
       }
 
+      // Génération du monstre et affichage en fonction de la configuration choisie aléatoirement
       this.monster = new Monster(
         this,
         this.scale.width - 150,
@@ -684,8 +687,8 @@ export class MainScene extends Phaser.Scene {
     const cfg: any = (this as any).currentMonsterConfig || {};
     const perTurn = Math.max(1, cfg.actionsPerTurn ?? 1);
 
-    const ATOMIC_DELAY = 150; // pacing entre étapes d’un combo (rapide)
-    const ACTION_DELAY = 250; // pacing entre actions “de haut niveau”
+    const ATOMIC_DELAY = 150;
+    const ACTION_DELAY = 250;
 
     const doAtomic = () => {
       const action = this.monster.playNextAction();
@@ -699,21 +702,18 @@ export class MainScene extends Phaser.Scene {
         case "charm":        this.applyCharm(Math.max(1, action.value || 1)); break;
         case "transform":    this.monster.transformToForm(action.value); break;
         case "milk":         this.monster.milk(action.value); break;
-        // 'combo' ne devrait jamais tomber ici car playNextAction renvoie une atomique
       }
     };
 
     let highLevelCount = 0;
 
     const drainComboThenNext = () => {
-      // Tant qu’il reste des sous-étapes, on continue dans CE tour
       if (this.monster.getPendingCount() > 0) {
         doAtomic();
         this.time.delayedCall(ATOMIC_DELAY, drainComboThenNext);
         return;
       }
 
-      // Fin du combo (ou ce n’était pas un combo) → on passe à l’action “de haut niveau” suivante
       highLevelCount++;
       if (highLevelCount >= perTurn) {
         this.time.delayedCall(300, () => this.startPlayerTurn());
@@ -725,14 +725,10 @@ export class MainScene extends Phaser.Scene {
     };
 
     const runOneHighLevel = () => {
-      // Démarre une action “de haut niveau” (qui peut être atomique OU un combo)
-      // playNextAction renvoie toujours une atomique (ou la 1ère étape du combo)
       doAtomic();
-      // Puis on draine le reste si c'était un combo
       this.time.delayedCall(ATOMIC_DELAY, drainComboThenNext);
     };
 
-    // kickstart
     runOneHighLevel();
   }
 
@@ -740,26 +736,21 @@ export class MainScene extends Phaser.Scene {
     return !!(card as any).getData?.('charmed');
   }
 
-  /** Y a-t-il au moins une carte charmée dans la playzone ? */
   private hasCharmedInZone(): boolean {
     return this.playZone.getCards().some(c => (c as any).getData?.('charmed'));
   }
 
-  /** Met à jour les boutons en tenant compte du charm. */
   private updateButtonsForCharm() {
     const cardCount = this.playZone.getCardCount();
     const hasDiscardsLeft = this.discardsUsed < MainScene.MAX_DISCARD;
-    const forbidDiscard = this.hasCharmedInZone(); // on bloque la défausse si charm
+    const forbidDiscard = this.hasCharmedInZone();
     this.playButton.setEnabled(cardCount >= 1 && cardCount <= 5);
     this.discardButton.setEnabled(cardCount >= 1 && cardCount <= 5 && hasDiscardsLeft && !forbidDiscard);
   }
 
-  /** Applique Charm : prend N cartes aléatoires de la main (hors zone) et les force dans la zone. */
   private applyCharm(n: number = 1) {
-    // Candidats = cartes en main et PAS déjà dans la zone
     const candidates = this.handCards.filter(c => !this.playZone.containsCard(c));
     if (candidates.length === 0) {
-      // S'il n'y a rien en main, on peut marquer une carte déjà en zone (edge case)
       const already = this.playZone.getCards();
       if (already.length > 0) {
         const c = Phaser.Utils.Array.GetRandom(already) as Card;
@@ -773,12 +764,9 @@ export class MainScene extends Phaser.Scene {
     const take = Math.min(n, candidates.length);
     for (let i = 0; i < take; i++) {
       const card = candidates[i];
-      // On la force dans la playzone
       this.playZone.addCard(card);
-      // On la retire de la main
       const idx = this.handCards.indexOf(card);
       if (idx !== -1) this.handCards.splice(idx, 1);
-      // On marque charmée
       (card as any).setData?.('charmed', true);
     }
 
@@ -786,10 +774,10 @@ export class MainScene extends Phaser.Scene {
     this.sortHand();
     this.reorganizeHand();
 
-    // Mettre à jour l'état des boutons (défausse interdite si charm)
+    // Mettre à jour l'état des boutons
     this.updateButtonsForCharm();
 
-    // (Optionnel) petit feedback visuel
+    // feedback visuel
     this.tweens.add({
       targets: this.playZone.getCards().filter(c => (c as any).getData?.('charmed')),
       scale: { from: 1.05, to: 1 },
@@ -840,6 +828,7 @@ export class MainScene extends Phaser.Scene {
       this.createIntentUI();
     }
 
+    // Icones des intentions de monstre
     const mapText: Record<MonsterActionType, string> = {
       attack: '⚔',
       defend: '🛡',
@@ -882,7 +871,7 @@ export class MainScene extends Phaser.Scene {
 
     if (this.encounterType === 'boss') {
       clearDefeatedPools(this);
-      this.game.registry.set('lastMonsterName', undefined); // reset pour l'étage suivant
+      this.game.registry.set('lastMonsterName', undefined);
     } else {
       if (cfg?.name) markMonsterDefeated(this, this.encounterType, cfg.name);
     }
@@ -901,7 +890,6 @@ export class MainScene extends Phaser.Scene {
           result: "won",
           playerHp: this.player.getHP(),
           goldDelta,
-          // encouterType: this.encounterType,
         });
       } catch (e) {
         console.warn("[MainScene] combatEnd a échoué (on retourne quand même sur la map) :", e);

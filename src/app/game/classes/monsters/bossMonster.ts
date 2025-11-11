@@ -1,6 +1,7 @@
 import { MonsterAction } from "../Monster";
 import { MonsterSounds } from "./types";
 
+// Configuration de la template de Boss
 export interface BossConfig {
   name: string;
   texture: string;
@@ -11,17 +12,21 @@ export interface BossConfig {
   sounds?: MonsterSounds
 }
 
+// Definitions des Boss
 export const BOSS_DEFINITIONS: BossConfig[] = [
+  // As de Pique
   {
     name: "spadeBoss",
     texture: "spadeBoss",
-    maxHP: 750,
+    maxHP: 350,
     actionsPerTurn: 2,
     actions: [
       { type: "attack", value: 20, description: "Coup du parrain" },
       { type: "defend", value: 15, description: "Cigar Shield" },
+
       { type: "attack", value: 30, description: "Assaut de pique" },
       { type: "waiting", value: 0, description: "Regard menaçant" },
+
       { type: "StealPercent", value: 20, description: "Ratisse le tapis (20%)" },
       { type: "waiting", value: 0, description: "Regard menaçant" },
     ],
